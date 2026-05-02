@@ -1,0 +1,15 @@
+server:
+  port: 8089
+
+executor:
+  work_dir: "/data/media/output"
+  ffmpeg_path: "ffmpeg"
+  ffprobe_path: "ffprobe"
+  max_concurrent: 4
+  retry_times: 1
+  timeout_ms: 300000    # 5 minutes; video operations can be slow
+
+redis:
+  addr: "redis:6379"    # 本地开发改为 127.0.0.1:6379；为空使用内存 store
+  password: ""
+  db: 1                 # 与 tts-service（db: 0）隔离
