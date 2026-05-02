@@ -1,0 +1,24 @@
+services:
+  tts-worker:
+    build: ./tts-worker
+    environment:
+      - STORAGE_LOCAL_DIR=/data/tts/audio
+    volumes:
+      - tts-audio:/data/tts/audio
+    ports:
+      - "8090:8090"
+
+  tts-service:
+    build: ./tts-service
+    environment:
+      - CONFIG_PATH=/app/config.yaml
+    volumes:
+      - tts-audio:/data/tts/audio
+      - ./tts-service/config.example.yaml:/app/config.yaml:ro
+    ports:
+      - "8088:8088"
+    depends_on:
+      - tts-worker
+
+volumes:
+  tts-audio:

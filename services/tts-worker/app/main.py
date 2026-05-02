@@ -3,6 +3,8 @@ import os
 import time
 from pathlib import Path
 
+import uvicorn
+
 import edge_tts
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -15,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-STORAGE_LOCAL_DIR = os.environ.get("STORAGE_LOCAL_DIR", "/data/tts/audio")
+STORAGE_LOCAL_DIR = os.environ.get("STORAGE_LOCAL_DIR", "/tmp/tts/audio")
 
 app = FastAPI(title="tts-worker")
 
@@ -113,3 +115,8 @@ async def synthesize(req: SynthesizeRequest):
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8090))
+    uvicorn.run(app, host="0.0.0.0", port=port)
