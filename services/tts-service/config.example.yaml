@@ -1,0 +1,12 @@
+server:
+  port: 8088
+
+worker:
+  base_url: "http://tts-worker:8090"
+  timeout_ms: 120000
+  retry_times: 1
+
+storage:
+  type: "local"
+  local_dir: "/data/tts/audio"
+  public_base_url: ""
