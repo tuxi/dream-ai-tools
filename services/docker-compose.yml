@@ -1,4 +1,19 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: tts-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - tts-redis-data:/data
+    networks:
+      - tts-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   tts-worker:
     build: ./tts-worker
     restart: unless-stopped
@@ -26,6 +41,8 @@ services:
     ports:
       - "8088:8088"
     depends_on:
+      redis:
+        condition: service_healthy
       tts-worker:
         condition: service_healthy
     healthcheck:
@@ -37,9 +54,8 @@ services:
 
 volumes:
   tts-audio:
+  tts-redis-data:
 
 networks:
   tts-net:
     name: tts-net
-    # ai-engine 容器加上 networks: [tts-net] 即可与 tts-service 互通
-    # 或者将 ai-engine 的 compose 网络设置为 external: true 引用此网络

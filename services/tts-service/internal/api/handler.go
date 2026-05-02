@@ -21,13 +21,13 @@ type Config struct {
 }
 
 type Handler struct {
-	store      *task.Store
+	store      task.Store
 	worker     *worker.Client
 	retrytimes int
 	workerMs   int
 }
 
-func NewHandler(store *task.Store, workerClient *worker.Client, cfg Config) *Handler {
+func NewHandler(store task.Store, workerClient *worker.Client, cfg Config) *Handler {
 	retries := cfg.WorkerRetryTimes
 	if retries < 0 {
 		retries = 0
@@ -106,7 +106,11 @@ func (h *Handler) Create(c *gin.Context) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	h.store.Save(t)
+	if err := h.store.Save(t); err != nil {
+		slog.Error("save task failed", "task_id", taskID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error_code": "store_error", "error_message": err.Error()})
+		return
+	}
 
 	go h.dispatch(taskID, req, format)
 

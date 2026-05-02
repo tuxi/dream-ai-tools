@@ -186,22 +186,10 @@ AI Engine -> Gin TTS Service -> Python edge-tts Worker
 - Service 重启后任务状态不丢失。
 - 多实例查询同一任务结果一致。
 
-## P1-2 接入 OSS
+## ~~P1-2 接入 OSS~~ （已废除）
 
-任务目标：
-
-- 生产环境返回稳定 URL。
-
-核心改动：
-
-- 支持上传 OSS/S3/COS。
-- 保存 `url`。
-- 本地文件按 TTL 清理。
-
-验收标准：
-
-- 查询结果返回可访问 URL。
-- 主系统不依赖跨容器本地路径。
+> 废除原因：TTS provider 生成音频后直接输出本地路径，下游节点消费本地文件。
+> 跨容器文件访问通过共享 Docker volume 解决，无需绕道 OSS 上传。
 
 ## P1-3 增强可观测性
 

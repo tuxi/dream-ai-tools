@@ -6,7 +6,7 @@ worker:
   timeout_ms: 120000
   retry_times: 1
 
-storage:
-  type: "local"
-  local_dir: "/data/tts/audio"
-  public_base_url: ""
+redis:
+  addr: "redis:6379"      # 本地开发改为 127.0.0.1:6379
+  password: ""
+  db: 0
