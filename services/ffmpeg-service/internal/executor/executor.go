@@ -31,6 +31,7 @@ var registry = map[string]Executor{
 	"extract-frame":    &ExtractFrameExecutor{},
 	"postprocess":      &PostprocessExecutor{},
 	"image-preprocess": &ImagePreprocessExecutor{},
+	"assemble":         &AssembleExecutor{},
 }
 
 // Dispatch routes the job to the appropriate executor.

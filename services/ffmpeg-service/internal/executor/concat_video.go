@@ -12,8 +12,10 @@ import (
 //
 // params:
 //
-//	video_paths []string — ordered list of video file paths
-//	reencode    bool     — true: re-encode via filter_complex; false: concat demuxer (lossless)
+//	video_paths    []string — ordered list of video file paths
+//	reencode       bool     — true: re-encode via filter_complex; false: concat demuxer (lossless)
+//	filter_complex string   — pre-built filter_complex string (overrides reencode logic)
+//	map_spec       string   — output map label used with filter_complex (e.g. "[vout]")
 type ConcatVideoExecutor struct{}
 
 func (e *ConcatVideoExecutor) Run(ctx context.Context, params map[string]any, jobID string, cfg Config) (string, []string, error) {
@@ -24,6 +26,31 @@ func (e *ConcatVideoExecutor) Run(ctx context.Context, params map[string]any, jo
 
 	reencode, _ := getBool(params, "reencode")
 	outPath := filepath.Join(cfg.WorkDir, jobID+".mp4")
+
+	// Pre-built filter_complex path (used by merge_video with xfade transitions).
+	if fc, ok := getString(params, "filter_complex"); ok && fc != "" {
+		mapSpec, _ := getString(params, "map_spec")
+		if mapSpec == "" {
+			mapSpec = "[vout]"
+		}
+		args := []string{"-y"}
+		for _, p := range paths {
+			args = append(args, "-i", p)
+		}
+		args = append(args,
+			"-filter_complex", fc,
+			"-map", mapSpec,
+			"-c:v", "libx264",
+			"-preset", "medium",
+			"-pix_fmt", "yuv420p",
+			"-movflags", "+faststart",
+			outPath,
+		)
+		if err := runFFmpeg(ctx, cfg.FFmpegPath, args...); err != nil {
+			return "", nil, err
+		}
+		return outPath, nil, nil
+	}
 
 	if !reencode {
 		listFile, err := writeConcatList(paths, cfg.WorkDir, jobID)
