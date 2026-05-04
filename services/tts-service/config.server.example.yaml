@@ -1,0 +1,12 @@
+server:
+  port: 8088
+
+worker:
+  base_url: "http://tools-tts-worker:8090"   # Docker 内部服务名
+  timeout_ms: 120000
+  retry_times: 1
+
+redis:
+  addr: "tools-redis:6379"
+  password: "change-this-redis-password"
+  db: 0

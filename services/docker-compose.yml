@@ -1,45 +1,49 @@
 services:
   redis:
     image: redis:7-alpine
-    container_name: tts-redis
+    container_name: tools-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - tts-redis-data:/data
+      - ${REDIS_DATA_PATH}:/data
     networks:
-      - tts-net
+      - tools-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
 
   tts-worker:
-    build: ./tts-worker
+    image: ${TOOLS_IMAGE_PREFIX}/tts-worker:${IMAGE_TAG:-latest}
+    container_name: tools-tts-worker
     restart: unless-stopped
     environment:
-      - STORAGE_LOCAL_DIR=/data/tts/audio
+      STORAGE_LOCAL_DIR: ${DATA_PATH}/tts/audio
     volumes:
-      - tts-audio:/data/tts/audio
+      - ${DATA_PATH}/tts/audio:${DATA_PATH}/tts/audio
     networks:
-      - tts-net
+      - tools-net
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/healthz')"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   tts-service:
-    build: ./tts-service
+    image: ${TOOLS_IMAGE_PREFIX}/tts-service:${IMAGE_TAG:-latest}
+    container_name: tools-tts-service
     restart: unless-stopped
     volumes:
-      - tts-audio:/data/tts/audio
-      - ./tts-service/config.yaml:/app/config.yaml:ro
+      - ${CONFIG_PATH}/tts-service.yaml:/app/config.yaml:ro
+      - ${DATA_PATH}/tts/audio:${DATA_PATH}/tts/audio
     networks:
-      - tts-net
+      - tools-net
     ports:
-      - "8088:8088"
+      - "${TTS_SERVICE_PORT:-8088}:8088"
     depends_on:
       redis:
         condition: service_healthy
@@ -50,12 +54,29 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+      start_period: 15s
+
+  ffmpeg-service:
+    image: ${TOOLS_IMAGE_PREFIX}/ffmpeg-service:${IMAGE_TAG:-latest}
+    container_name: tools-ffmpeg-service
+    restart: unless-stopped
+    volumes:
+      - ${CONFIG_PATH}/ffmpeg-service.yaml:/app/config.yaml:ro
+      - ${DATA_PATH}/media:${DATA_PATH}/media
+    networks:
+      - tools-net
+    ports:
+      - "${FFMPEG_SERVICE_PORT:-8089}:8089"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8089/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
       start_period: 10s
 
-volumes:
-  tts-audio:
-  tts-redis-data:
-
 networks:
-  tts-net:
-    name: tts-net
+  tools-net:
+    name: tools-net

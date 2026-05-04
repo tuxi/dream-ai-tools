@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(go vet *)",
+      "Bash(go build *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(go version *)",
+      "Bash(go work *)",
+      "Bash(echo \"EXIT:$?\")"
+    ]
+  }
+}

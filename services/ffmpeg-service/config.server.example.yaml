@@ -1,0 +1,16 @@
+server:
+  port: 8089
+
+executor:
+  # 与 .env 中 DATA_PATH 保持一致，宿主机和容器内路径相同
+  work_dir: "/home/ubuntu/apps/dream-ai-tools/data/media"
+  ffmpeg_path: "ffmpeg"
+  ffprobe_path: "ffprobe"
+  max_concurrent: 4
+  retry_times: 1
+  timeout_ms: 300000    # 5 minutes
+
+redis:
+  addr: "tools-redis:6379"
+  password: "change-this-redis-password"
+  db: 1                 # 与 tts-service（db: 0）隔离
