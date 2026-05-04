@@ -2,11 +2,11 @@ server:
   port: 8088
 
 worker:
-  base_url: "http://tools-tts-worker:8090"   # Docker 内部服务名
+  base_url: "http://tools-tts-worker:8090"   # Docker 内部服务名（tools-net）
   timeout_ms: 120000
   retry_times: 1
 
 redis:
-  addr: "tools-redis:6379"
-  password: "change-this-redis-password"
+  addr: "dream-ai-redis:6379"   # 复用主项目的 Redis 容器（dream-ai 网络）
+  password: ""
   db: 0

@@ -1,21 +1,4 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: tools-redis
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-    volumes:
-      - ${REDIS_DATA_PATH}:/data
-    networks:
-      - tools-net
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   tts-worker:
     image: ${TOOLS_IMAGE_PREFIX}/tts-worker:${IMAGE_TAG:-latest}
     container_name: tools-tts-worker
@@ -42,11 +25,10 @@ services:
       - ${DATA_PATH}/tts/audio:${DATA_PATH}/tts/audio
     networks:
       - tools-net
+      - dream-ai
     ports:
       - "${TTS_SERVICE_PORT:-8088}:8088"
     depends_on:
-      redis:
-        condition: service_healthy
       tts-worker:
         condition: service_healthy
     healthcheck:
@@ -65,11 +47,9 @@ services:
       - ${DATA_PATH}/media:${DATA_PATH}/media
     networks:
       - tools-net
+      - dream-ai
     ports:
       - "${FFMPEG_SERVICE_PORT:-8089}:8089"
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8089/healthz"]
       interval: 15s
@@ -80,3 +60,6 @@ services:
 networks:
   tools-net:
     name: tools-net
+    driver: bridge
+  dream-ai:
+    external: true

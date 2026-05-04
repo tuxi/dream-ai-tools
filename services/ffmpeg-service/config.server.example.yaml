@@ -11,6 +11,6 @@ executor:
   timeout_ms: 300000    # 5 minutes
 
 redis:
-  addr: "tools-redis:6379"
-  password: "change-this-redis-password"
-  db: 1                 # 与 tts-service（db: 0）隔离
+  addr: "dream-ai-redis:6379"   # 复用主项目的 Redis 容器（dream-ai 网络）
+  password: ""
+  db: 1                          # 与 tts-service（db: 0）隔离
