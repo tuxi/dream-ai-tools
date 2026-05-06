@@ -67,6 +67,7 @@ Secrets：
     tts/
       audio/              # TTS 音频文件（主项目也会读取此目录）
     media/                # ffmpeg 工作目录（主项目也会读取此目录）
+	    fonts/                # 字幕字体文件，挂载到 ffmpeg-service /fonts
 ```
 
 创建目录：
@@ -76,6 +77,7 @@ mkdir -p ~/apps/dream-ai-tools/config
 mkdir -p ~/apps/dream-ai-tools/data/redis
 mkdir -p ~/apps/dream-ai-tools/data/tts/audio
 mkdir -p ~/apps/dream-ai-tools/data/media
+mkdir -p ~/apps/dream-ai-tools/data/fonts
 ```
 
 ## 4. 从仓库同步 compose 文件
@@ -303,3 +305,31 @@ docker exec -it tools-redis redis-cli --no-auth-warning -a YOUR_PASSWORD ping
 1. `~/apps/dream-ai-tools/data/tts/audio/` 目录存在且有写权限
 2. `tts-service.yaml` 中 redis 密码正确（否则降级内存 store，重启后任务丢失）
 3. `DATA_PATH` 与 `ffmpeg-service.yaml` / `tts-service.yaml` 中路径一致
+
+### 视频烧录字幕不显示（无字幕/空白方块）
+
+**现象：** 带货视频生成任务设置了 `enable_subtitle: true`，output 中 `subtitle_burn_v2` 也正常执行了，但最终视频没有中文字幕，或字幕显示为空白方块（tofu）。
+
+**原因：** ffmpeg-service 的 Docker 镜像基于 Alpine，只装了 ffmpeg 本体，没有中文字体。libass 渲染 ASS 字幕时找不到 `Noto Sans CJK SC` 字体，回退到默认字体，中文字符渲染为空。且 ffmpeg 退出码为 0，`runFFmpeg` 在 2026-05 之前丢弃成功了 stderr，日志无迹可查。
+
+**解决方案（方案 B — 宿主机字体挂载）：**
+
+1. 字体包装在宿主机上已安装（`fonts-noto-cjk`），复制到数据目录：
+
+```bash
+sudo cp /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc /data/fonts/
+```
+
+2. `docker-compose.yml` 中 ffmpeg-service 需挂载字体目录：
+
+```yaml
+volumes:
+  - ${DATA_PATH}/media:${DATA_PATH}/media
+  - ${DATA_PATH}/tmp:/tmp
+  - ${DATA_PATH}/fonts:/fonts:ro
+```
+
+3. 代码侧已完成对应修改：
+   - `burn_subtitle.go`：ffmpeg ass 滤镜加了 `fontsdir=/fonts` 参数
+   - `executor.go`：`runFFmpeg` 成功时也会记录 stderr，方便排查字体等问题
+   - `video_subtitle_burn_v2.go`：Linux 下 ASS Fontname 为 `Noto Sans CJK SC`，与宿主机 TTC 文件内部字体名一致
