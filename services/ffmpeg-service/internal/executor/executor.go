@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os/exec"
 
 	"github.com/tuxi/dream-ai-tools/ffmpeg-service/internal/job"
@@ -58,6 +59,9 @@ func runFFmpeg(ctx context.Context, ffmpegPath string, args ...string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ffmpeg: %w; output: %s", err, string(out))
+	}
+	if len(out) > 0 {
+		slog.Info("ffmpeg completed", "output", string(out))
 	}
 	return nil
 }

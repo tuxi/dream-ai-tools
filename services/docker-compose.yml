@@ -46,6 +46,7 @@ services:
       - ${CONFIG_PATH}/ffmpeg-service.yaml:/app/config.yaml:ro
       - ${DATA_PATH}/media:${DATA_PATH}/media
       - ${DATA_PATH}/tmp:/tmp
+      - ${DATA_PATH}/fonts:/fonts:ro
     networks:
       - tools-net
       - dream-ai

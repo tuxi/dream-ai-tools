@@ -29,10 +29,10 @@ func (e *BurnSubtitleExecutor) Run(ctx context.Context, params map[string]any, j
 
 	// Escape colon in path for the filter string (Windows paths or unusual chars).
 	escapedSub := escapeFilterPath(subtitlePath)
-	vf := "ass=" + escapedSub
+	vf := "ass=" + escapedSub + ":fontsdir=/fonts"
 
 	if style, ok := getString(params, "style_override"); ok && style != "" {
-		vf = fmt.Sprintf("ass=%s:force_style='%s'", escapedSub, style)
+		vf = fmt.Sprintf("ass=%s:force_style='%s':fontsdir=/fonts", escapedSub, style)
 	}
 
 	if err := runFFmpeg(ctx, cfg.FFmpegPath,
