@@ -15,15 +15,15 @@ import (
 
 // Config holds handler-level configuration.
 type Config struct {
-	RetryTimes  int
-	TimeoutMs   int
-	ExecConfig  executor.Config
+	RetryTimes int
+	TimeoutMs  int
+	ExecConfig executor.Config
 }
 
 // Handler implements the HTTP API for ffmpeg-service.
 type Handler struct {
-	store      job.Store
-	cfg        Config
+	store job.Store
+	cfg   Config
 }
 
 func NewHandler(store job.Store, cfg Config) *Handler {
@@ -182,6 +182,15 @@ func (h *Handler) ProbeHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error_code": "probe_failed", "error_message": err.Error()})
 		return
 	}
+
+	slog.Info("probe done",
+		"path", req.Path,
+		"duration_sec", info.DurationSec,
+		"width", info.Width,
+		"height", info.Height,
+		"size_bytes", info.SizeBytes,
+		"stream_count", len(info.Streams),
+	)
 
 	c.JSON(http.StatusOK, info)
 }
