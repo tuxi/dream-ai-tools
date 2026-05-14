@@ -314,10 +314,20 @@ docker exec -it tools-redis redis-cli --no-auth-warning -a YOUR_PASSWORD ping
 
 **解决方案（方案 B — 宿主机字体挂载）：**
 
-1. 字体包装在宿主机上已安装（`fonts-noto-cjk`），复制到数据目录：
+1. 在宿主机安装字体包，并复制字体到当前服务的数据目录。
 
 ```bash
-sudo cp /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc /data/fonts/
+cd ~/apps/dream-ai-tools
+
+DATA_PATH=$(grep '^DATA_PATH=' .env | cut -d= -f2-)
+echo "$DATA_PATH"
+
+sudo mkdir -p "$DATA_PATH/fonts"
+sudo apt-get update
+sudo apt-get install -y fonts-noto-cjk
+
+sudo cp /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc "$DATA_PATH/fonts/"
+sudo chmod 644 "$DATA_PATH/fonts/NotoSansCJK-Regular.ttc"
 ```
 
 2. `docker-compose.yml` 中 ffmpeg-service 需挂载字体目录：
@@ -329,7 +339,88 @@ volumes:
   - ${DATA_PATH}/fonts:/fonts:ro
 ```
 
-3. 代码侧已完成对应修改：
+3. 重启 ffmpeg-service，使容器重新挂载字体目录：
+
+```bash
+docker compose -f ~/apps/dream-ai-tools/docker-compose.yml --env-file ~/apps/dream-ai-tools/.env restart ffmpeg-service
+```
+
+4. 验证容器内字体文件存在：
+
+```bash
+docker exec tools-ffmpeg-service sh -lc 'ls -lah /fonts'
+```
+
+应看到：
+
+```text
+NotoSansCJK-Regular.ttc
+```
+
+`fc-list` / `fc-match` 在 Alpine 容器里不一定能列出 bind mount 的字体；最终以 ffmpeg/libass 是否能加载字体为准。可执行最小验证：
+
+```bash
+docker exec tools-ffmpeg-service sh -lc '
+cat > /tmp/font_test.ass <<EOF
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Noto Sans CJK SC,58,&H00FFFFFF,&H00000000,&H40000000,&H00000000,0,0,0,0,100,100,0,0,1,3,0,2,0,0,220,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:03.00,Default,,0,0,0,,中文字体测试
+EOF
+
+ffmpeg -y -f lavfi -i color=c=black:s=720x1280:d=3 \
+  -vf "ass=/tmp/font_test.ass:fontsdir=/fonts" \
+  -frames:v 1 /tmp/font_test.jpg 2>&1 | grep -E "Loading font file|fontselect|Noto|Glyph|Added subtitle|Using font"
+ls -lah /tmp/font_test.jpg
+'
+```
+
+成功时应看到类似：
+
+```text
+Loading font file '/fonts/NotoSansCJK-Regular.ttc'
+fontselect: (Noto Sans CJK SC, 400, 0) -> NotoSansCJKsc-Regular
+```
+
+如果仍看到：
+
+```text
+fontselect: failed to find any fallback ... for font: (Noto Sans CJK SC, 400, 0)
+```
+
+说明容器没有正确读取 `/fonts/NotoSansCJK-Regular.ttc`，优先检查 `.env` 的 `DATA_PATH`、compose 挂载路径、文件权限和容器是否已重启。
+
+5. 重新跑任务或重新触发字幕烧录。
+
+旧视频是在字体缺失时烧录出来的，字体修复后不会自动恢复字幕，必须重新执行 `video_subtitle_burn_v2` 或重新跑完整工作流。
+
+6. 排查线上任务时看 ffmpeg-service 日志：
+
+```bash
+docker logs tools-ffmpeg-service --since=30m 2>&1 \
+  | grep -E 'burn-subtitle|Loading font file|fontselect|Noto|Glyph|Added subtitle file|job done|job failed'
+```
+
+正常日志应包含：
+
+```text
+Added subtitle file: '...' (... events)
+Loading font file '/fonts/NotoSansCJK-Regular.ttc'
+fontselect: (Noto Sans CJK SC, 400, 0) -> NotoSansCJKsc-Regular
+job done ... operation=burn-subtitle status=done
+```
+
+`subtitle:0kB` 不是错误。硬字幕已经烧进视频像素，不会保留独立 subtitle stream。
+
+7. 代码侧已完成对应修改：
    - `burn_subtitle.go`：ffmpeg ass 滤镜加了 `fontsdir=/fonts` 参数
    - `executor.go`：`runFFmpeg` 成功时也会记录 stderr，方便排查字体等问题
    - `video_subtitle_burn_v2.go`：Linux 下 ASS Fontname 为 `Noto Sans CJK SC`，与宿主机 TTC 文件内部字体名一致
