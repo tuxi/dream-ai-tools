@@ -130,6 +130,31 @@ func getStringSlice(params map[string]any, key string) ([]string, bool) {
 	return out, true
 }
 
+func getFloat64Slice(params map[string]any, key string) ([]float64, bool) {
+	v, ok := params[key]
+	if !ok {
+		return nil, false
+	}
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil, false
+	}
+	out := make([]float64, 0, len(raw))
+	for _, item := range raw {
+		switch f := item.(type) {
+		case float64:
+			out = append(out, f)
+		case int:
+			out = append(out, float64(f))
+		case int64:
+			out = append(out, float64(f))
+		default:
+			return nil, false
+		}
+	}
+	return out, true
+}
+
 func getMap(params map[string]any, key string) (map[string]any, bool) {
 	v, ok := params[key]
 	if !ok {

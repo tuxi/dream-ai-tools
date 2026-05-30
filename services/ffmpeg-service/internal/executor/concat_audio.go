@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,9 +14,14 @@ import (
 //
 // Simple path (no filter_complex):
 //
-//	audio_paths   []string — ordered list of audio file paths
-//	gap_sec       float64  — silence gap between segments (ignored; reserved for future use)
-//	output_format string   — output container (default "mp3")
+//	audio_paths   []string  — ordered list of audio file paths
+//	gap_sec       float64   — silence gap between segments (ignored; reserved for future use)
+//	output_format string    — output container (default "mp3")
+//	atempo_factors []float64 — optional, parallel to audio_paths: per-segment tempo
+//	                           multiplier (>1 speeds up, =1/absent unchanged). When any
+//	                           factor != 1, each input is re-encoded with atempo before
+//	                           concat (filter graph), used to fit per-shot narration into
+//	                           the shot duration. Empty → original lossless/concat path.
 //
 // filter_complex path (pre-built by caller):
 //
@@ -47,6 +53,11 @@ func (e *ConcatAudioExecutor) Run(ctx context.Context, params map[string]any, jo
 	}
 
 	outPath := filepath.Join(cfg.WorkDir, jobID+"."+format)
+
+	// Per-segment tempo adjustment (atempo) then concat — re-encode path.
+	if factors, ok := getFloat64Slice(params, "atempo_factors"); ok && anyTempoChange(factors) {
+		return e.runWithAtempo(ctx, paths, factors, outPath, cfg)
+	}
 
 	gapSec, hasGap := getFloat64(params, "gap_sec")
 	if !hasGap || gapSec <= 0 {
@@ -143,6 +154,83 @@ func (e *ConcatAudioExecutor) runWithFilterComplex(ctx context.Context, params m
 		return "", nil, err
 	}
 	return outPath, nil, nil
+}
+
+// runWithAtempo re-encodes each input with a per-segment atempo factor (>1 speeds
+// up to fit the shot duration; =1 unchanged) and concatenates them.
+//
+// Filter graph (per input i, normalising sample rate AND channel layout so concat
+// won't fail on mismatched inputs):
+//
+//	[0:a]aresample=44100,atempo=f0,aformat=channel_layouts=stereo[a0];
+//	[1:a]aresample=44100,aformat=channel_layouts=stereo[a1];...;
+//	[a0][a1]...concat=n=N:v=0:a=1[out]
+func (e *ConcatAudioExecutor) runWithAtempo(ctx context.Context, paths []string, factors []float64, outPath string, cfg Config) (string, []string, error) {
+	n := len(paths)
+	args := []string{"-y"}
+	for _, p := range paths {
+		args = append(args, "-i", p)
+	}
+
+	chains := make([]string, 0, n)
+	labels := make([]string, n)
+	for i := 0; i < n; i++ {
+		factor := 1.0
+		if i < len(factors) && factors[i] > 0 {
+			factor = factors[i]
+		}
+		lbl := fmt.Sprintf("[a%d]", i)
+		labels[i] = lbl
+
+		// aresample 统一采样率；atempo 变速（按需）；aformat 统一声道布局为 stereo。
+		// 三者合在一起保证各路输入格式一致，concat 才不会报错。
+		filters := []string{"aresample=44100"}
+		if math.Abs(factor-1.0) > 1e-3 {
+			filters = append(filters, atempoFilters(factor)...)
+		}
+		filters = append(filters, "aformat=channel_layouts=stereo")
+		chains = append(chains, fmt.Sprintf("[%d:a]%s%s", i, strings.Join(filters, ","), lbl))
+	}
+
+	filter := strings.Join(chains, ";") + ";" +
+		strings.Join(labels, "") + fmt.Sprintf("concat=n=%d:v=0:a=1[out]", n)
+
+	args = append(args, "-filter_complex", filter, "-map", "[out]", outPath)
+	if err := runFFmpeg(ctx, cfg.FFmpegPath, args...); err != nil {
+		return "", nil, err
+	}
+	return outPath, nil, nil
+}
+
+// anyTempoChange reports whether any factor meaningfully differs from 1.0.
+func anyTempoChange(factors []float64) bool {
+	for _, f := range factors {
+		if f > 0 && math.Abs(f-1.0) > 1e-3 {
+			return true
+		}
+	}
+	return false
+}
+
+// atempoFilters decomposes a tempo factor into a chain of atempo filters, each
+// within ffmpeg's stable [0.5, 2.0] range (a single atempo can't exceed 2.0).
+// For typical narration fitting the factor is ~1.0–1.3 → a single filter.
+func atempoFilters(factor float64) []string {
+	if factor <= 0 {
+		return []string{"atempo=1.0"}
+	}
+	var parts []string
+	f := factor
+	for f > 2.0 {
+		parts = append(parts, "atempo=2.0")
+		f /= 2.0
+	}
+	for f < 0.5 {
+		parts = append(parts, "atempo=0.5")
+		f /= 0.5
+	}
+	parts = append(parts, fmt.Sprintf("atempo=%.4f", f))
+	return parts
 }
 
 // writeConcatList writes an ffmpeg concat demuxer list file and returns its path.
