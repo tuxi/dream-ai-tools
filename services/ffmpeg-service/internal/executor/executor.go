@@ -21,6 +21,11 @@ type Executor interface {
 	Run(ctx context.Context, params map[string]any, jobID string, cfg Config) (outputPath string, outputPaths []string, err error)
 }
 
+// DataExecutor optionally returns structured JSON data directly in the job result.
+type DataExecutor interface {
+	RunData(ctx context.Context, params map[string]any, jobID string, cfg Config) (outputPath string, outputPaths []string, outputData map[string]any, err error)
+}
+
 var registry = map[string]Executor{
 	"mix-audio":        &MixAudioExecutor{},
 	"concat-audio":     &ConcatAudioExecutor{},
@@ -33,15 +38,20 @@ var registry = map[string]Executor{
 	"postprocess":      &PostprocessExecutor{},
 	"image-preprocess": &ImagePreprocessExecutor{},
 	"assemble":         &AssembleExecutor{},
+	"detect-scenes":    &DetectScenesExecutor{},
 }
 
 // Dispatch routes the job to the appropriate executor.
-func Dispatch(ctx context.Context, j *job.Job, cfg Config) (string, []string, error) {
+func Dispatch(ctx context.Context, j *job.Job, cfg Config) (string, []string, map[string]any, error) {
 	exec, ok := registry[j.Operation]
 	if !ok {
-		return "", nil, fmt.Errorf("unknown operation: %s", j.Operation)
+		return "", nil, nil, fmt.Errorf("unknown operation: %s", j.Operation)
 	}
-	return exec.Run(ctx, j.Params, j.ID, cfg)
+	if dataExec, ok := exec.(DataExecutor); ok {
+		return dataExec.RunData(ctx, j.Params, j.ID, cfg)
+	}
+	outputPath, outputPaths, err := exec.Run(ctx, j.Params, j.ID, cfg)
+	return outputPath, outputPaths, nil, err
 }
 
 // KnownOperations returns all registered operation names.

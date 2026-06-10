@@ -16,6 +16,7 @@ import (
 type FFmpegServiceProvider struct {
 	baseURL      string
 	submitClient *http.Client
+	probeClient  *http.Client
 	pollClient   *http.Client
 	pollInterval time.Duration
 	waitTimeout  time.Duration
@@ -23,8 +24,9 @@ type FFmpegServiceProvider struct {
 
 // FFmpegServiceConfig 是构造 FFmpegServiceProvider 所需的配置。
 type FFmpegServiceConfig struct {
-	ServiceURL     string
+	ServiceURL      string
 	SubmitTimeoutMs int
+	ProbeTimeoutMs  int
 	WaitTimeoutMs   int
 	PollIntervalMs  int
 }
@@ -32,6 +34,9 @@ type FFmpegServiceConfig struct {
 func NewFFmpegServiceProvider(cfg FFmpegServiceConfig) *FFmpegServiceProvider {
 	if cfg.SubmitTimeoutMs <= 0 {
 		cfg.SubmitTimeoutMs = 1000
+	}
+	if cfg.ProbeTimeoutMs <= 0 {
+		cfg.ProbeTimeoutMs = 30000
 	}
 	if cfg.WaitTimeoutMs <= 0 {
 		cfg.WaitTimeoutMs = 300000
@@ -42,6 +47,7 @@ func NewFFmpegServiceProvider(cfg FFmpegServiceConfig) *FFmpegServiceProvider {
 	return &FFmpegServiceProvider{
 		baseURL:      cfg.ServiceURL,
 		submitClient: &http.Client{Timeout: time.Duration(cfg.SubmitTimeoutMs) * time.Millisecond},
+		probeClient:  &http.Client{Timeout: time.Duration(cfg.ProbeTimeoutMs) * time.Millisecond},
 		pollClient:   &http.Client{Timeout: 10 * time.Second},
 		pollInterval: time.Duration(cfg.PollIntervalMs) * time.Millisecond,
 		waitTimeout:  time.Duration(cfg.WaitTimeoutMs) * time.Millisecond,
@@ -202,7 +208,7 @@ func (p *FFmpegServiceProvider) Probe(ctx context.Context, path string) (*ProbeI
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := p.submitClient.Do(req)
+	resp, err := p.probeClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg-service probe failed: %w", err)
 	}
@@ -239,10 +245,21 @@ func (p *FFmpegServiceProvider) SubmitMixAudio(ctx context.Context, params MixAu
 }
 
 // ConcatAudioParams 对应 "concat-audio" 操作。
+//
+// AtempoFactors（可选）与 AudioPaths 一一对应，表示每段音频拼接前的变速倍率
+// （atempo）：>1 加速、=1 或缺省不变。用于把超过分镜时长的旁白压到对应时长，
+// 同时保持「≤分镜时长的段不变速」。
+//
+// 服务端（dream-ai-tools）行为约定：
+//   - AtempoFactors 为空 → 沿用原有 concat 解复用器路径（不变速）。
+//   - AtempoFactors 非空 → 对第 i 路输入应用 atempo=AtempoFactors[i]（=1 时跳过），
+//     再用 concat 滤镜拼接：
+//     [0:a]atempo=f0[a0];[1:a]atempo=f1[a1];...;[a0][a1]...concat=n=N:v=0:a=1[out]
 type ConcatAudioParams struct {
-	AudioPaths   []string `json:"audio_paths"`
-	GapSec       float64  `json:"gap_sec"`
-	OutputFormat string   `json:"output_format"`
+	AudioPaths    []string  `json:"audio_paths"`
+	GapSec        float64   `json:"gap_sec"`
+	OutputFormat  string    `json:"output_format"`
+	AtempoFactors []float64 `json:"atempo_factors,omitempty"`
 }
 
 func (p *FFmpegServiceProvider) SubmitConcatAudio(ctx context.Context, params ConcatAudioParams) (string, error) {
@@ -322,10 +339,10 @@ func (p *FFmpegServiceProvider) SubmitExtractFrame(ctx context.Context, params E
 
 // PostprocessParams 对应 "postprocess" 操作。
 type PostprocessParams struct {
-	VideoPath           string         `json:"video_path"`
-	WatermarkText       string         `json:"watermark_text,omitempty"`
-	WatermarkImagePath  string         `json:"watermark_image_path,omitempty"`
-	DrawtextParams      map[string]any `json:"drawtext_params,omitempty"`
+	VideoPath          string         `json:"video_path"`
+	WatermarkText      string         `json:"watermark_text,omitempty"`
+	WatermarkImagePath string         `json:"watermark_image_path,omitempty"`
+	DrawtextParams     map[string]any `json:"drawtext_params,omitempty"`
 }
 
 func (p *FFmpegServiceProvider) SubmitPostprocess(ctx context.Context, params PostprocessParams) (string, error) {
@@ -335,11 +352,11 @@ func (p *FFmpegServiceProvider) SubmitPostprocess(ctx context.Context, params Po
 // ImagePreprocessParams 对应 "image-preprocess" 操作。
 // FitMode: "cover" | "contain" | "fill"
 type ImagePreprocessParams struct {
-	ImagePath     string `json:"image_path"`
-	TargetWidth   int    `json:"target_width"`
-	TargetHeight  int    `json:"target_height"`
-	FitMode       string `json:"fit_mode"`
-	OutputFormat  string `json:"output_format"`
+	ImagePath    string `json:"image_path"`
+	TargetWidth  int    `json:"target_width"`
+	TargetHeight int    `json:"target_height"`
+	FitMode      string `json:"fit_mode"`
+	OutputFormat string `json:"output_format"`
 }
 
 func (p *FFmpegServiceProvider) SubmitImagePreprocess(ctx context.Context, params ImagePreprocessParams) (string, error) {

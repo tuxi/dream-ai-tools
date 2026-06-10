@@ -50,11 +50,12 @@ func (s *RedisStore) Get(id string) (*Job, error) {
 	return &j, nil
 }
 
-func (s *RedisStore) MarkDone(id, outputPath string, outputPaths []string) error {
+func (s *RedisStore) MarkDone(id, outputPath string, outputPaths []string, outputData map[string]any) error {
 	return s.update(id, func(j *Job) {
 		j.Status = StatusDone
 		j.OutputPath = outputPath
 		j.OutputPaths = outputPaths
+		j.OutputData = outputData
 		j.UpdatedAt = time.Now()
 	})
 }

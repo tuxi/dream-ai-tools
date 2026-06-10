@@ -10,7 +10,7 @@ import (
 type Store interface {
 	Save(j *Job) error
 	Get(id string) (*Job, error)
-	MarkDone(id, outputPath string, outputPaths []string) error
+	MarkDone(id, outputPath string, outputPaths []string, outputData map[string]any) error
 	MarkFailed(id, errorCode, errorMessage string) error
 	IncrRetry(id string) error
 }
@@ -42,7 +42,7 @@ func (s *MemoryStore) Get(id string) (*Job, error) {
 	return j, nil
 }
 
-func (s *MemoryStore) MarkDone(id, outputPath string, outputPaths []string) error {
+func (s *MemoryStore) MarkDone(id, outputPath string, outputPaths []string, outputData map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	j, ok := s.jobs[id]
@@ -52,6 +52,7 @@ func (s *MemoryStore) MarkDone(id, outputPath string, outputPaths []string) erro
 	j.Status = StatusDone
 	j.OutputPath = outputPath
 	j.OutputPaths = outputPaths
+	j.OutputData = outputData
 	j.UpdatedAt = time.Now()
 	return nil
 }

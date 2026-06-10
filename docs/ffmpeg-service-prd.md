@@ -114,6 +114,7 @@ ffmpeg / ffprobe 二进制
 | `extract-frame` | 提取视频指定位置帧 | video_path, position(head/tail/time_sec) | 帧图片路径 |
 | `postprocess` | 水印/drawtext 叠加 | video_path, 水印参数 | 处理后视频路径 |
 | `image-preprocess` | 图片缩放/裁剪/填充 | image_path, 目标分辨率, fit模式 | 处理后图片路径 |
+| `detect-scenes` | 检测视频画面切换点 | video_path, threshold, min_scene_duration | scenes[] |
 
 #### ffprobe 只读操作（同步返回）
 

@@ -92,6 +92,7 @@ func (h *Handler) dispatch(jobID, operation string, params map[string]any) {
 	var (
 		outputPath  string
 		outputPaths []string
+		outputData  map[string]any
 		lastErr     error
 	)
 
@@ -102,7 +103,7 @@ func (h *Handler) dispatch(jobID, operation string, params map[string]any) {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(h.cfg.TimeoutMs)*time.Millisecond)
-		outputPath, outputPaths, lastErr = executor.Dispatch(ctx, j, h.cfg.ExecConfig)
+		outputPath, outputPaths, outputData, lastErr = executor.Dispatch(ctx, j, h.cfg.ExecConfig)
 		cancel()
 
 		if lastErr == nil {
@@ -119,7 +120,7 @@ func (h *Handler) dispatch(jobID, operation string, params map[string]any) {
 
 	slog.Info("job done", "job_id", jobID, "operation", operation, "status", "done",
 		"output_path", outputPath)
-	h.store.MarkDone(jobID, outputPath, outputPaths)
+	h.store.MarkDone(jobID, outputPath, outputPaths, outputData)
 }
 
 // Result handles GET /api/v1/ffmpeg/jobs/result?id={job_id}.
@@ -141,9 +142,19 @@ func (h *Handler) Result(c *gin.Context) {
 		"status": string(j.Status),
 	}
 	if j.Status == job.StatusDone {
-		resp["output_path"] = j.OutputPath
+		if j.OutputPath != "" {
+			resp["output_path"] = j.OutputPath
+		}
 		if len(j.OutputPaths) > 0 {
 			resp["output_paths"] = j.OutputPaths
+		}
+		if len(j.OutputData) > 0 {
+			resp["output_data"] = j.OutputData
+			for k, v := range j.OutputData {
+				if _, exists := resp[k]; !exists {
+					resp[k] = v
+				}
+			}
 		}
 	}
 	if j.Status == job.StatusFailed {

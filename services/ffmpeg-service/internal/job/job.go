@@ -17,6 +17,7 @@ type Job struct {
 	Status       Status
 	OutputPath   string
 	OutputPaths  []string
+	OutputData   map[string]any
 	ErrorCode    string
 	ErrorMessage string
 	RetryCount   int
