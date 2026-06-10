@@ -4,7 +4,9 @@ import logging
 import os
 import threading
 import time
+import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from numbers import Number
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -148,22 +150,58 @@ class OCRRequest(BaseModel):
     keyframes: List[Keyframe] = Field(default_factory=list)
 
 
-class CapacityLimiter:
-    def __init__(self, limit: int) -> None:
-        self.limit = max(1, int(limit))
-        self.in_flight = 0
-        self.lock = asyncio.Lock()
+class SingleOCRRequest(BaseModel):
+    task_id: str = ""
+    language: str = "zh-CN"
+    min_confidence: Optional[float] = None
+    keyframe: Keyframe
 
-    async def acquire(self) -> bool:
-        async with self.lock:
-            if self.in_flight >= self.limit:
-                return False
-            self.in_flight += 1
-            return True
 
-    async def release(self) -> None:
-        async with self.lock:
-            self.in_flight = max(0, self.in_flight - 1)
+@dataclass
+class OCRJob:
+    id: str
+    task_id: str
+    status: str = "processing"
+    result: Optional[Dict[str, Any]] = None
+    error_code: str = ""
+    error_message: str = ""
+    created_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=time.time)
+
+
+class OCRJobStore:
+    def __init__(self) -> None:
+        self._jobs: Dict[str, OCRJob] = {}
+        self._lock = threading.RLock()
+
+    def create(self, task_id: str) -> OCRJob:
+        job = OCRJob(id="ocr_" + uuid.uuid4().hex, task_id=task_id)
+        with self._lock:
+            self._jobs[job.id] = job
+        return job
+
+    def get(self, job_id: str) -> Optional[OCRJob]:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def mark_done(self, job_id: str, result: Dict[str, Any]) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.status = "done"
+            job.result = result
+            job.updated_at = time.time()
+
+    def mark_failed(self, job_id: str, error_code: str, error_message: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.status = "failed"
+            job.error_code = error_code
+            job.error_message = error_message
+            job.updated_at = time.time()
 
 
 def path_in_root(path: Path, root: Path) -> bool:
@@ -388,13 +426,20 @@ class PaddleOCREngine:
 engine = PaddleOCREngine()
 if bool(CONFIG["ocr"].get("offline", False)):
     engine.ensure_loaded(str(CONFIG["ocr"].get("language", "zh-CN")))
-limiter = CapacityLimiter(CONFIG["ocr"].get("max_concurrency", 2))
+ocr_semaphore = threading.BoundedSemaphore(max(1, int(CONFIG["ocr"].get("max_concurrency", 2))))
+job_store = OCRJobStore()
 app = FastAPI(title="ocr-service")
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_, exc: RequestValidationError):
     return JSONResponse(status_code=400, content={"error": "invalid_request", "message": str(exc)})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_, exc: Exception):
+    logger.exception("unhandled ocr-service exception")
+    return JSONResponse(status_code=500, content={"error": "internal_error", "message": str(exc)})
 
 
 @app.get("/healthz")
@@ -421,27 +466,105 @@ async def readyz():
 
 @app.post("/v1/ocr/keyframes")
 async def ocr_keyframes(req: OCRRequest):
-    if not req.keyframes:
-        return JSONResponse(status_code=400, content={"error": "empty_keyframes", "message": "keyframes must not be empty"})
-
-    max_images = int(CONFIG["ocr"].get("max_images_per_request", 120))
-    if len(req.keyframes) > max_images:
-        return JSONResponse(status_code=400, content={"error": "too_many_images", "message": "max_images_per_request exceeded"})
-
-    if not await limiter.acquire():
-        return JSONResponse(status_code=429, content={"error": "too_many_requests", "message": "max_concurrency exceeded"})
-
+    error = validate_ocr_request(req)
+    if error:
+        return error
     started = time.monotonic()
     try:
-        return await asyncio.to_thread(process_ocr_request, req)
+        return await asyncio.to_thread(process_ocr_request_with_limit, req)
     finally:
-        await limiter.release()
         logger.info(
             "ocr request finished task_id=%s keyframes=%d latency_ms=%d",
             req.task_id,
             len(req.keyframes),
             int((time.monotonic() - started) * 1000),
         )
+
+
+@app.post("/v1/ocr/keyframe")
+async def ocr_keyframe(req: SingleOCRRequest):
+    batch_req = OCRRequest(
+        task_id=req.task_id,
+        language=req.language,
+        min_confidence=req.min_confidence,
+        dedupe=False,
+        keyframes=[req.keyframe],
+    )
+    error = validate_ocr_request(batch_req)
+    if error:
+        return error
+    started = time.monotonic()
+    try:
+        return await asyncio.to_thread(process_ocr_request_with_limit, batch_req)
+    finally:
+        logger.info(
+            "single ocr request finished task_id=%s keyframe_id=%s latency_ms=%d",
+            req.task_id,
+            req.keyframe.id,
+            int((time.monotonic() - started) * 1000),
+        )
+
+
+@app.post("/v1/ocr/keyframes/jobs")
+async def submit_ocr_keyframes_job(req: OCRRequest):
+    error = validate_ocr_request(req)
+    if error:
+        return error
+
+    job = job_store.create(req.task_id)
+    asyncio.create_task(run_ocr_job(job.id, req))
+    return {"job_id": job.id, "task_id": req.task_id, "status": job.status}
+
+
+@app.get("/v1/ocr/keyframes/jobs/result")
+async def get_ocr_keyframes_job_result(id: str):
+    job = job_store.get(id.strip())
+    if not job:
+        return JSONResponse(status_code=404, content={"error": "not_found", "message": "ocr job not found"})
+
+    response: Dict[str, Any] = {
+        "job_id": job.id,
+        "task_id": job.task_id,
+        "status": job.status,
+    }
+    if job.status == "done" and job.result is not None:
+        response.update(job.result)
+    if job.status == "failed":
+        response["error_code"] = job.error_code
+        response["error_message"] = job.error_message
+    return response
+
+
+async def run_ocr_job(job_id: str, req: OCRRequest) -> None:
+    started = time.monotonic()
+    try:
+        result = await asyncio.to_thread(process_ocr_request_with_limit, req)
+        job_store.mark_done(job_id, result)
+        logger.info(
+            "ocr job done job_id=%s task_id=%s keyframes=%d latency_ms=%d",
+            job_id,
+            req.task_id,
+            len(req.keyframes),
+            int((time.monotonic() - started) * 1000),
+        )
+    except Exception as exc:
+        logger.exception("ocr job failed job_id=%s task_id=%s", job_id, req.task_id)
+        job_store.mark_failed(job_id, "ocr_failed", str(exc))
+
+
+def validate_ocr_request(req: OCRRequest) -> Optional[JSONResponse]:
+    if not req.keyframes:
+        return JSONResponse(status_code=400, content={"error": "empty_keyframes", "message": "keyframes must not be empty"})
+
+    max_images = int(CONFIG["ocr"].get("max_images_per_request", 120))
+    if len(req.keyframes) > max_images:
+        return JSONResponse(status_code=400, content={"error": "too_many_images", "message": "max_images_per_request exceeded"})
+    return None
+
+
+def process_ocr_request_with_limit(req: OCRRequest) -> Dict[str, Any]:
+    with ocr_semaphore:
+        return process_ocr_request(req)
 
 
 def process_ocr_request(req: OCRRequest) -> Dict[str, Any]:
@@ -455,13 +578,27 @@ def process_ocr_request(req: OCRRequest) -> Dict[str, Any]:
     for keyframe in req.keyframes:
         path, error = resolve_allowed_file(keyframe.local_path)
         if error:
-            warnings.append({"type": "ocr_image_failed", "keyframe_id": keyframe.id, "message": error})
+            warnings.append(
+                {
+                    "type": "ocr_image_failed",
+                    "keyframe_id": keyframe.id,
+                    "local_path": keyframe.local_path,
+                    "message": error,
+                }
+            )
             continue
         try:
             raw_items = engine.recognize(path, req.language)
         except Exception as exc:
             logger.exception("ocr failed task_id=%s keyframe_id=%s path=%s", req.task_id, keyframe.id, path)
-            warnings.append({"type": "ocr_image_failed", "keyframe_id": keyframe.id, "message": str(exc)})
+            warnings.append(
+                {
+                    "type": "ocr_image_failed",
+                    "keyframe_id": keyframe.id,
+                    "local_path": keyframe.local_path,
+                    "message": str(exc),
+                }
+            )
             continue
 
         kept_count = 0
