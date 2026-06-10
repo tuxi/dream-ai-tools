@@ -331,10 +331,27 @@ curl -s -X POST http://127.0.0.1:8089/api/v1/ffmpeg/probe \
   -d '{"path":"/home/ubuntu/apps/dream-ai-tools/data/media/test.mp4"}'
 ```
 
-快速 OCR 测试（需要一张包含文字的图片）：
+快速 scene detect 测试（异步任务）：
 
 ```bash
-curl -s -X POST http://127.0.0.1:8091/v1/ocr/keyframes \
+curl -s -X POST http://127.0.0.1:8089/api/v1/ffmpeg/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operation":"detect-scenes",
+    "params":{
+      "video_path":"/home/ubuntu/apps/dream-ai-tools/data/media/test.mp4",
+      "threshold":0.3,
+      "min_scene_duration":0.8
+    }
+  }' | jq .
+
+curl -s "http://127.0.0.1:8089/api/v1/ffmpeg/jobs/result?id=<job_id>" | jq .
+```
+
+快速 OCR 测试（异步批量任务，需要一张包含文字的图片）：
+
+```bash
+curl -s -X POST http://127.0.0.1:8091/v1/ocr/keyframes/jobs \
   -H "Content-Type: application/json" \
   -d '{
     "task_id":"local-test",
@@ -348,6 +365,8 @@ curl -s -X POST http://127.0.0.1:8091/v1/ocr/keyframes \
       }
     ]
   }' | jq .
+
+curl -s "http://127.0.0.1:8091/v1/ocr/keyframes/jobs/result?id=<job_id>" | jq .
 ```
 
 快速 ASR 测试（需要一个带音频的 mp4）：
