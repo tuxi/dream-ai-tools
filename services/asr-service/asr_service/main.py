@@ -102,7 +102,43 @@ def ensure_asr_model_cache_exists(cache_dir: str) -> None:
         raise RuntimeError(f"model files not found under {cache_dir}, please run model download first")
 
 
+def resolve_executable(path: str) -> str:
+    if "/" in path:
+        return path if Path(path).exists() else ""
+    return shutil.which(path) or ""
+
+
+def media_tool_status(config: Dict[str, Any]) -> Dict[str, Any]:
+    ffmpeg_path = str(config["asr"].get("ffmpeg_path", "ffmpeg"))
+    ffprobe_path = str(config["asr"].get("ffprobe_path", "ffprobe"))
+    resolved_ffmpeg = resolve_executable(ffmpeg_path)
+    resolved_ffprobe = resolve_executable(ffprobe_path)
+    return {
+        "ffmpeg_path": ffmpeg_path,
+        "ffprobe_path": ffprobe_path,
+        "ffmpeg_resolved_path": resolved_ffmpeg,
+        "ffprobe_resolved_path": resolved_ffprobe,
+        "ffmpeg_available": bool(resolved_ffmpeg),
+        "ffprobe_available": bool(resolved_ffprobe),
+    }
+
+
+def log_media_tool_status(config: Dict[str, Any]) -> None:
+    status = media_tool_status(config)
+    logger.info(
+        "asr media tools ffmpeg_path=%s ffmpeg_available=%s ffmpeg_resolved_path=%s "
+        "ffprobe_path=%s ffprobe_available=%s ffprobe_resolved_path=%s",
+        status["ffmpeg_path"],
+        status["ffmpeg_available"],
+        status["ffmpeg_resolved_path"],
+        status["ffprobe_path"],
+        status["ffprobe_available"],
+        status["ffprobe_resolved_path"],
+    )
+
+
 setup_asr_model_cache(CONFIG)
+log_media_tool_status(CONFIG)
 
 
 class TranscribeRequest(BaseModel):
@@ -475,6 +511,7 @@ async def validation_exception_handler(_, exc: RequestValidationError):
 
 @app.get("/healthz")
 async def healthz() -> Dict[str, Any]:
+    media_tools = media_tool_status(CONFIG)
     return {
         "status": "ok",
         "service": "asr-service",
@@ -482,6 +519,7 @@ async def healthz() -> Dict[str, Any]:
         "model_loaded": engine.model_loaded,
         "cache_dir": str(CONFIG["asr"].get("model_cache_dir") or os.environ.get("MODELSCOPE_CACHE", "default")),
         "offline": bool(CONFIG["asr"].get("offline", False)),
+        "media_tools": media_tools,
     }
 
 
