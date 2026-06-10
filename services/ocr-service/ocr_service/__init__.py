@@ -1,0 +1,1 @@
+"""HTTP wrapper for PaddleOCR."""

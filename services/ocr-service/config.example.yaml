@@ -1,0 +1,22 @@
+server:
+  host: 0.0.0.0
+  port: 8091
+
+ocr:
+  engine: paddleocr
+  lang: ch
+  use_gpu: false
+  ocr_version: PP-OCRv5
+  model_cache_dir: /models/paddlex
+  offline: false
+  min_confidence: 0.6
+  max_images_per_request: 120
+  max_concurrency: 2
+  dedupe: true
+  dedupe_window_seconds: 2.0
+  max_file_size_mb: 50
+
+storage:
+  allowed_roots:
+    - /tmp
+    - /data/media

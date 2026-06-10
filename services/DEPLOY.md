@@ -9,24 +9,30 @@
 | ffmpeg-service | Go | 8089 | 异步 ffmpeg 操作 HTTP API，含 ffprobe |
 | tts-service | Go | 8088 | 异步 TTS 任务 HTTP API |
 | tts-worker | Python | 8090（内部） | 实际运行 edge-tts，仅 tts-service 调用 |
+| ocr-service | Python | 8091 | PaddleOCR keyframes 文字识别 HTTP API |
+| asr-service | Python | 8092 | FunASR 音视频转写 HTTP API |
 | redis | - | 内部 | ffmpeg-service 用 db=1，tts-service 用 db=0 |
 
 **主项目访问方式：**
 - `http://127.0.0.1:8088` → tts-service
 - `http://127.0.0.1:8089` → ffmpeg-service
+- `http://127.0.0.1:8091` → ocr-service
+- `http://127.0.0.1:8092` → asr-service
 
-**路径一致性原则：** tts-worker 保存的音频路径、ffmpeg-service 的工作目录，都使用宿主机绝对路径，容器内通过 bind mount 挂载相同路径。主项目在宿主机上可直接读取这些路径的文件。
+**路径一致性原则：** tts-worker 保存的音频路径，ffmpeg-service / ocr-service / asr-service 读取的 media/tmp 路径，都使用宿主机绝对路径，容器内通过 bind mount 挂载相同路径。主项目在宿主机上可直接读取这些路径的文件。
 
 ## 2. GitHub Actions 镜像构建
 
 工作流文件：`/.github/workflows/docker-publish.yml`
 
-推送到 `main` 分支或打 tag 时自动构建并推送 3 个镜像到 GHCR：
+推送到 `main` 分支或打 tag 时自动构建并推送 5 个镜像到 GHCR：
 
 ```
 ghcr.io/tuxi/dream-ai-tools/ffmpeg-service:latest
 ghcr.io/tuxi/dream-ai-tools/tts-service:latest
 ghcr.io/tuxi/dream-ai-tools/tts-worker:latest
+ghcr.io/tuxi/dream-ai-tools/ocr-service:latest
+ghcr.io/tuxi/dream-ai-tools/asr-service:latest
 ```
 
 首次确认：
@@ -62,11 +68,15 @@ Secrets：
   config/
     ffmpeg-service.yaml   # 服务器本地，不进 git
     tts-service.yaml      # 服务器本地，不进 git
+    ocr-service.yaml      # 服务器本地，不进 git
+    asr-service.yaml      # 服务器本地，不进 git
   data/
     redis/                # Redis 持久化数据
     tts/
       audio/              # TTS 音频文件（主项目也会读取此目录）
     media/                # ffmpeg 工作目录（主项目也会读取此目录）
+    tmp/                  # OCR / ASR / 主项目共享临时目录
+    models/               # OCR / ASR 模型持久化缓存
 	    fonts/                # 字幕字体文件，挂载到 ffmpeg-service /fonts
 ```
 
@@ -77,6 +87,8 @@ mkdir -p ~/apps/dream-ai-tools/config
 mkdir -p ~/apps/dream-ai-tools/data/redis
 mkdir -p ~/apps/dream-ai-tools/data/tts/audio
 mkdir -p ~/apps/dream-ai-tools/data/media
+mkdir -p ~/apps/dream-ai-tools/data/tmp
+mkdir -p ~/apps/dream-ai-tools/data/models
 mkdir -p ~/apps/dream-ai-tools/data/fonts
 ```
 
@@ -109,6 +121,8 @@ REDIS_PASSWORD=change-this-redis-password
 
 TTS_SERVICE_PORT=8088
 FFMPEG_SERVICE_PORT=8089
+OCR_SERVICE_PORT=8091
+ASR_SERVICE_PORT=8092
 EOF
 ```
 
@@ -159,6 +173,99 @@ EOF
 
 两个文件中的 `redis.password` 必须与 `.env` 里的 `REDIS_PASSWORD` 一致。
 
+### ocr-service.yaml
+
+```bash
+cat > ~/apps/dream-ai-tools/config/ocr-service.yaml <<'EOF'
+server:
+  host: 0.0.0.0
+  port: 8091
+
+ocr:
+  engine: paddleocr
+  lang: ch
+  use_gpu: false
+  ocr_version: PP-OCRv5
+  model_cache_dir: /models/paddlex
+  offline: false
+  min_confidence: 0.6
+  max_images_per_request: 120
+  max_concurrency: 2
+  dedupe: true
+  dedupe_window_seconds: 2.0
+
+storage:
+  allowed_roots:
+    - /tmp
+    - /home/ubuntu/apps/dream-ai-tools/data/tmp
+    - /home/ubuntu/apps/dream-ai-tools/data/media
+EOF
+```
+
+### asr-service.yaml
+
+```bash
+cat > ~/apps/dream-ai-tools/config/asr-service.yaml <<'EOF'
+server:
+  host: 0.0.0.0
+  port: 8092
+
+asr:
+  engine: funasr
+  language: zh-CN
+  use_gpu: false
+  model: auto
+  model_cache_dir: /models/modelscope
+  offline: false
+  sample_rate: 16000
+  max_duration_seconds: 120
+  enable_timestamps: true
+  max_concurrency: 1
+  work_dir: /tmp/dream-ai-tools/asr
+  ffmpeg_path: ffmpeg
+  ffprobe_path: ffprobe
+
+storage:
+  allowed_roots:
+    - /tmp
+    - /home/ubuntu/apps/dream-ai-tools/data/tmp
+    - /home/ubuntu/apps/dream-ai-tools/data/media
+EOF
+```
+
+### 模型缓存与离线模式
+
+OCR / ASR 容器会把模型缓存写入 `${DATA_PATH}/models`，容器内路径为 `/models`：
+
+```text
+${DATA_PATH}/models/
+  cache/
+  paddle/
+  paddlex/
+  paddleocr/
+  modelscope/
+  huggingface/
+  torch/
+```
+
+首次上线建议先预下载模型：
+
+```bash
+docker run --rm \
+  -v /home/ubuntu/apps/dream-ai-tools/data/models:/models \
+  -v /home/ubuntu/apps/dream-ai-tools/config/ocr-service.yaml:/app/config.yaml:ro \
+  ghcr.io/tuxi/dream-ai-tools/ocr-service:latest \
+  python scripts/download_models.py --target ocr --config /app/config.yaml
+
+docker run --rm \
+  -v /home/ubuntu/apps/dream-ai-tools/data/models:/models \
+  -v /home/ubuntu/apps/dream-ai-tools/config/asr-service.yaml:/app/config.yaml:ro \
+  ghcr.io/tuxi/dream-ai-tools/asr-service:latest \
+  python scripts/download_models.py --target asr --config /app/config.yaml
+```
+
+模型下载完成并确认服务能启动后，可以把 `ocr.offline` / `asr.offline` 改为 `true`。离线模式下服务启动时会检查模型缓存并预加载模型；如果缓存缺失，进程会启动失败并提示先执行模型下载。
+
 ## 7. 启动服务
 
 ```bash
@@ -179,6 +286,8 @@ docker compose -f compose.yml --env-file .env ps
 - `tools-tts-worker` → healthy（start_period 15s，稍等片刻）
 - `tools-tts-service` → healthy
 - `tools-ffmpeg-service` → healthy
+- `tools-ocr-service` → healthy
+- `tools-asr-service` → healthy
 
 ## 8. 验证服务
 
@@ -188,9 +297,18 @@ curl http://127.0.0.1:8088/healthz
 
 # ffmpeg-service
 curl http://127.0.0.1:8089/healthz
+
+# ocr-service
+curl http://127.0.0.1:8091/healthz
+curl http://127.0.0.1:8091/readyz
+
+# asr-service
+curl http://127.0.0.1:8092/healthz
+curl http://127.0.0.1:8092/readyz
 ```
 
-两个接口都应返回 `{"status":"ok"}`。
+健康检查接口都应返回 `{"status":"ok"}`。
+`/readyz` 在模型已加载后返回 `status=ready`；未加载时返回 503 和 `status=loading`。如果 `offline=true`，服务启动时会预加载模型，readyz 应直接 ready。
 
 快速 TTS 测试：
 
@@ -211,6 +329,38 @@ curl -s "http://127.0.0.1:8088/api/v1/tts/result?id=<task_id>" | jq .
 curl -s -X POST http://127.0.0.1:8089/api/v1/ffmpeg/probe \
   -H "Content-Type: application/json" \
   -d '{"path":"/home/ubuntu/apps/dream-ai-tools/data/media/test.mp4"}'
+```
+
+快速 OCR 测试（需要一张包含文字的图片）：
+
+```bash
+curl -s -X POST http://127.0.0.1:8091/v1/ocr/keyframes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_id":"local-test",
+    "language":"zh-CN",
+    "keyframes":[
+      {
+        "id":"kf_001",
+        "segment_id":"seg_001",
+        "time":0.25,
+        "local_path":"/home/ubuntu/apps/dream-ai-tools/data/media/test.jpg"
+      }
+    ]
+  }' | jq .
+```
+
+快速 ASR 测试（需要一个带音频的 mp4）：
+
+```bash
+curl -s -X POST http://127.0.0.1:8092/v1/asr/transcribe \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_id":"local-test",
+    "language":"zh-CN",
+    "local_video_path":"/home/ubuntu/apps/dream-ai-tools/data/media/test.mp4",
+    "with_timestamps":true
+  }' | jq .
 ```
 
 ## 9. 主项目 config.yaml 对应配置
@@ -240,6 +390,8 @@ ffmpeg:
 cd ~/apps/dream-ai-tools
 docker compose -f compose.yml --env-file .env logs -f tts-service
 docker compose -f compose.yml --env-file .env logs -f ffmpeg-service
+docker compose -f compose.yml --env-file .env logs -f ocr-service
+docker compose -f compose.yml --env-file .env logs -f asr-service
 docker compose -f compose.yml --env-file .env logs -f tts-worker
 docker compose -f compose.yml --env-file .env logs --tail=50 redis
 ```

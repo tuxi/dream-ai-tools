@@ -59,6 +59,61 @@ services:
       retries: 3
       start_period: 10s
 
+  ocr-service:
+    image: ${TOOLS_IMAGE_PREFIX}/ocr-service:${IMAGE_TAG:-latest}
+    container_name: tools-ocr-service
+    restart: unless-stopped
+    environment:
+      XDG_CACHE_HOME: /models/cache
+      PADDLE_HOME: /models/paddle
+      PADDLEX_HOME: /models/paddlex
+      PADDLEOCR_HOME: /models/paddleocr
+    volumes:
+      - ${CONFIG_PATH}/ocr-service.yaml:/app/config.yaml:ro
+      - ${DATA_PATH}/media:${DATA_PATH}/media
+      - ${DATA_PATH}/tmp:${DATA_PATH}/tmp
+      - ${DATA_PATH}/tmp:/tmp
+      - ${DATA_PATH}/models:/models
+    networks:
+      - tools-net
+      - dream-ai
+    ports:
+      - "${OCR_SERVICE_PORT:-8091}:8091"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8091/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  asr-service:
+    image: ${TOOLS_IMAGE_PREFIX}/asr-service:${IMAGE_TAG:-latest}
+    container_name: tools-asr-service
+    restart: unless-stopped
+    environment:
+      XDG_CACHE_HOME: /models/cache
+      HF_HOME: /models/huggingface
+      HF_HUB_CACHE: /models/huggingface/hub
+      MODELSCOPE_CACHE: /models/modelscope
+      TORCH_HOME: /models/torch
+    volumes:
+      - ${CONFIG_PATH}/asr-service.yaml:/app/config.yaml:ro
+      - ${DATA_PATH}/media:${DATA_PATH}/media
+      - ${DATA_PATH}/tmp:${DATA_PATH}/tmp
+      - ${DATA_PATH}/tmp:/tmp
+      - ${DATA_PATH}/models:/models
+    networks:
+      - tools-net
+      - dream-ai
+    ports:
+      - "${ASR_SERVICE_PORT:-8092}:8092"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8092/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
 networks:
   tools-net:
     name: tools-net

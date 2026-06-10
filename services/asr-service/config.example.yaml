@@ -1,0 +1,24 @@
+server:
+  host: 0.0.0.0
+  port: 8092
+
+asr:
+  engine: funasr
+  language: zh-CN
+  use_gpu: false
+  model: auto
+  model_cache_dir: /models/modelscope
+  offline: false
+  sample_rate: 16000
+  max_duration_seconds: 120
+  enable_timestamps: true
+  max_concurrency: 1
+  max_file_size_mb: 500
+  work_dir: /tmp/dream-ai-tools/asr
+  ffmpeg_path: ffmpeg
+  ffprobe_path: ffprobe
+
+storage:
+  allowed_roots:
+    - /tmp
+    - /data/media
