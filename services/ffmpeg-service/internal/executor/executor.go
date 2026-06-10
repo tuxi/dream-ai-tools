@@ -63,6 +63,12 @@ func KnownOperations() []string {
 	return ops
 }
 
+// IsKnownOperation reports whether an operation has a registered executor.
+func IsKnownOperation(operation string) bool {
+	_, ok := registry[operation]
+	return ok
+}
+
 // runFFmpeg executes an ffmpeg command and returns combined output on failure.
 func runFFmpeg(ctx context.Context, ffmpegPath string, args ...string) error {
 	cmd := exec.CommandContext(ctx, ffmpegPath, args...)

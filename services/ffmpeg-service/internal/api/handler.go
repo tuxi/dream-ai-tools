@@ -52,6 +52,10 @@ func (h *Handler) Submit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error_code": "invalid_request", "error_message": "operation is required"})
 		return
 	}
+	if !executor.IsKnownOperation(req.Operation) {
+		c.JSON(http.StatusBadRequest, gin.H{"error_code": "unknown_operation", "error_message": "unknown operation: " + req.Operation})
+		return
+	}
 
 	if req.Params == nil {
 		req.Params = map[string]any{}

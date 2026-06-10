@@ -116,7 +116,10 @@ func main() {
 	r.Use(gin.Recovery())
 
 	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(200, gin.H{
+			"status":     "ok",
+			"operations": executor.KnownOperations(),
+		})
 	})
 
 	v1 := r.Group("/api/v1/ffmpeg")
