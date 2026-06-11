@@ -13,6 +13,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "use_doc_orientation_classify": False,
         "use_doc_unwarping": False,
         "use_textline_orientation": False,
+        "enable_mkldnn": False,
+        "enable_hpi": False,
+        "cpu_threads": 2,
         "model_cache_dir": "/models/paddlex",
         "offline": False,
     }
@@ -85,7 +88,14 @@ def main() -> None:
         "use_doc_unwarping": bool(config["ocr"].get("use_doc_unwarping", False)),
         "use_textline_orientation": bool(config["ocr"].get("use_textline_orientation", False)),
     }
+    runtime_kwargs = {
+        "enable_mkldnn": bool(config["ocr"].get("enable_mkldnn", False)),
+        "enable_hpi": bool(config["ocr"].get("enable_hpi", False)),
+        "cpu_threads": int(config["ocr"].get("cpu_threads", 2)),
+    }
     candidates = [
+        {"lang": lang, "ocr_version": ocr_version, **stable_kwargs, **runtime_kwargs},
+        {"lang": lang, **stable_kwargs, **runtime_kwargs},
         {"lang": lang, "ocr_version": ocr_version, **stable_kwargs},
         {"lang": lang, **stable_kwargs},
         {"lang": lang, "ocr_version": ocr_version},

@@ -31,6 +31,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "use_doc_orientation_classify": False,
         "use_doc_unwarping": False,
         "use_textline_orientation": False,
+        "enable_mkldnn": False,
+        "enable_hpi": False,
+        "cpu_threads": 2,
         "model_cache_dir": "",
         "offline": False,
         "min_confidence": 0.6,
@@ -340,20 +343,33 @@ class PaddleOCREngine:
             "use_doc_unwarping": bool(CONFIG["ocr"].get("use_doc_unwarping", False)),
             "use_textline_orientation": bool(CONFIG["ocr"].get("use_textline_orientation", False)),
         }
+        runtime_kwargs = {
+            "enable_mkldnn": bool(CONFIG["ocr"].get("enable_mkldnn", False)),
+            "enable_hpi": bool(CONFIG["ocr"].get("enable_hpi", False)),
+            "cpu_threads": int(CONFIG["ocr"].get("cpu_threads", 2)),
+        }
         candidates = [
+            {
+                "lang": lang,
+                "ocr_version": ocr_version,
+                **stable_kwargs,
+                **runtime_kwargs,
+            },
+            {"lang": lang, **stable_kwargs, **runtime_kwargs},
+            {
+                "lang": lang,
+                "use_gpu": use_gpu,
+                "ocr_version": ocr_version,
+                **stable_kwargs,
+                **runtime_kwargs,
+            },
+            {"lang": lang, "use_gpu": use_gpu, **stable_kwargs, **runtime_kwargs},
             {
                 "lang": lang,
                 "ocr_version": ocr_version,
                 **stable_kwargs,
             },
             {"lang": lang, **stable_kwargs},
-            {
-                "lang": lang,
-                "use_gpu": use_gpu,
-                "ocr_version": ocr_version,
-                **stable_kwargs,
-            },
-            {"lang": lang, "use_gpu": use_gpu, **stable_kwargs},
             {"lang": lang, "ocr_version": ocr_version},
             {"lang": lang},
         ]

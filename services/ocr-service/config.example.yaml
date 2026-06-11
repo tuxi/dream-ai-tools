@@ -10,6 +10,9 @@ ocr:
   use_doc_orientation_classify: false
   use_doc_unwarping: false
   use_textline_orientation: false
+  enable_mkldnn: false
+  enable_hpi: false
+  cpu_threads: 2
   model_cache_dir: /models/paddlex
   offline: false
   min_confidence: 0.6
