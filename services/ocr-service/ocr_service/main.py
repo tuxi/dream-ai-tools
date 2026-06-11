@@ -27,7 +27,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "engine": "paddleocr",
         "lang": "ch",
         "use_gpu": False,
-        "ocr_version": "PP-OCRv5",
+        "ocr_version": "PP-OCRv4",
         "use_doc_orientation_classify": False,
         "use_doc_unwarping": False,
         "use_textline_orientation": False,
@@ -82,7 +82,8 @@ def setup_ocr_model_cache(config: Dict[str, Any]) -> None:
         os.environ.setdefault("PADDLE_HOME", str(Path(default_root) / "paddle"))
         os.environ.setdefault("PADDLEX_HOME", cache_dir)
         os.environ.setdefault("PADDLEOCR_HOME", str(Path(default_root) / "paddleocr"))
-        setup_paddlex_home_link(cache_dir)
+        setup_legacy_cache_link(Path.home() / ".paddlex", Path(cache_dir))
+        setup_legacy_cache_link(Path.home() / ".paddleocr", Path(os.environ["PADDLEOCR_HOME"]))
 
     if bool(config["ocr"].get("offline", False)):
         cache_dir = cache_dir or os.environ.get("PADDLEX_HOME", "")
@@ -100,26 +101,24 @@ def setup_ocr_model_cache(config: Dict[str, Any]) -> None:
     )
 
 
-def setup_paddlex_home_link(cache_dir: str) -> None:
-    target = Path(cache_dir)
+def setup_legacy_cache_link(legacy: Path, target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
-    legacy = Path.home() / ".paddlex"
     try:
         if legacy.is_symlink() and legacy.resolve(strict=False) == target.resolve(strict=False):
             return
         if legacy.is_mount():
-            logger.info("using mounted legacy paddlex cache path=%s target=%s", legacy, target)
+            logger.info("using mounted legacy cache path=%s target=%s", legacy, target)
             return
         if legacy.exists():
             if legacy.is_dir() and not any(legacy.iterdir()):
                 legacy.rmdir()
             else:
-                logger.warning("legacy paddlex cache exists path=%s target=%s", legacy, target)
+                logger.warning("legacy cache exists path=%s target=%s", legacy, target)
                 return
         legacy.symlink_to(target, target_is_directory=True)
-        logger.info("linked legacy paddlex cache path=%s target=%s", legacy, target)
+        logger.info("linked legacy cache path=%s target=%s", legacy, target)
     except Exception as exc:
-        logger.warning("failed to link legacy paddlex cache path=%s target=%s error=%s", legacy, target, exc)
+        logger.warning("failed to link legacy cache path=%s target=%s error=%s", legacy, target, exc)
 
 
 def ensure_ocr_model_cache_exists(cache_dir: str, ocr_version: str) -> None:
@@ -338,6 +337,9 @@ class PaddleOCREngine:
         lang = CONFIG["ocr"].get("lang") or self._map_language(language)
         use_gpu = bool(CONFIG["ocr"].get("use_gpu", False))
         ocr_version = str(CONFIG["ocr"].get("ocr_version", "PP-OCRv5"))
+        if ocr_version.upper() == "PP-OCRV5":
+            logger.warning("PP-OCRv5 is not enabled in the CPU-stable OCR image, falling back to PP-OCRv4")
+            ocr_version = "PP-OCRv4"
         stable_kwargs = {
             "use_doc_orientation_classify": bool(CONFIG["ocr"].get("use_doc_orientation_classify", False)),
             "use_doc_unwarping": bool(CONFIG["ocr"].get("use_doc_unwarping", False)),

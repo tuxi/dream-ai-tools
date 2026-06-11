@@ -6,14 +6,14 @@ ocr:
   engine: paddleocr
   lang: ch
   use_gpu: false
-  ocr_version: PP-OCRv5
+  ocr_version: PP-OCRv4
   use_doc_orientation_classify: false
   use_doc_unwarping: false
   use_textline_orientation: false
   enable_mkldnn: false
   enable_hpi: false
   cpu_threads: 2
-  model_cache_dir: /models/paddlex
+  model_cache_dir: /models/paddleocr
   offline: false
   min_confidence: 0.6
   max_images_per_request: 120

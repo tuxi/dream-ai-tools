@@ -9,14 +9,14 @@ import yaml
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ocr": {
         "lang": "ch",
-        "ocr_version": "PP-OCRv5",
+        "ocr_version": "PP-OCRv4",
         "use_doc_orientation_classify": False,
         "use_doc_unwarping": False,
         "use_textline_orientation": False,
         "enable_mkldnn": False,
         "enable_hpi": False,
         "cpu_threads": 2,
-        "model_cache_dir": "/models/paddlex",
+        "model_cache_dir": "/models/paddleocr",
         "offline": False,
     }
 }
@@ -50,12 +50,12 @@ def setup_cache(config: Dict[str, Any]) -> None:
     os.environ["PADDLEX_HOME"] = os.environ.get("PADDLEX_HOME", cache_dir)
     os.environ["PADDLEOCR_HOME"] = os.environ.get("PADDLEOCR_HOME", str(Path(root) / "paddleocr"))
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
-    setup_paddlex_home_link(cache_dir)
+    setup_legacy_cache_link(Path.home() / ".paddlex", Path(cache_dir))
+    setup_legacy_cache_link(Path.home() / ".paddleocr", Path(os.environ["PADDLEOCR_HOME"]))
 
 
-def setup_paddlex_home_link(cache_dir: str) -> None:
-    target = Path(cache_dir)
-    legacy = Path.home() / ".paddlex"
+def setup_legacy_cache_link(legacy: Path, target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
     if legacy.is_symlink() and legacy.resolve(strict=False) == target.resolve(strict=False):
         return
     if legacy.is_mount():
@@ -83,6 +83,9 @@ def main() -> None:
 
     lang = str(config["ocr"].get("lang", "ch"))
     ocr_version = str(config["ocr"].get("ocr_version", "PP-OCRv5"))
+    if ocr_version.upper() == "PP-OCRV5":
+        print("PP-OCRv5 is not enabled in the CPU-stable OCR image, falling back to PP-OCRv4")
+        ocr_version = "PP-OCRv4"
     stable_kwargs = {
         "use_doc_orientation_classify": bool(config["ocr"].get("use_doc_orientation_classify", False)),
         "use_doc_unwarping": bool(config["ocr"].get("use_doc_unwarping", False)),
