@@ -3,7 +3,18 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wget libglib2.0-0 libgl1 libgomp1 libsm6 libxext6 \
+    && apt-get install -y --no-install-recommends \
+        wget \
+        libglib2.0-0 \
+        libgl1 \
+        libgomp1 \
+        libsm6 \
+        libxext6 \
+        tesseract-ocr \
+        tesseract-ocr-chi-sim \
+        tesseract-ocr-chi-tra \
+        tesseract-ocr-eng \
+        tesseract-ocr-jpn \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

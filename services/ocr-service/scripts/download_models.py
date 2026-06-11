@@ -8,6 +8,7 @@ import yaml
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ocr": {
+        "engine": "tesseract",
         "lang": "ch",
         "ocr_version": "PP-OCRv4",
         "use_doc_orientation_classify": False,
@@ -79,6 +80,11 @@ def main() -> None:
     config = load_config(args.config)
     config["ocr"]["offline"] = False
     setup_cache(config)
+
+    engine = str(config["ocr"].get("engine", "tesseract")).lower()
+    if engine == "tesseract":
+        print("OCR engine is tesseract; no external OCR models need to be downloaded.")
+        return
 
     from paddleocr import PaddleOCR
 

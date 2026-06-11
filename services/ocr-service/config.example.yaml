@@ -3,8 +3,10 @@ server:
   port: 8091
 
 ocr:
-  engine: paddleocr
+  engine: tesseract
   lang: ch
+  tesseract_lang: chi_sim+eng
+  tesseract_config: --psm 6
   use_gpu: false
   ocr_version: PP-OCRv4
   use_doc_orientation_classify: false

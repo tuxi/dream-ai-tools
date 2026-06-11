@@ -24,7 +24,7 @@ logger = logging.getLogger("ocr-service")
 DEFAULT_CONFIG: Dict[str, Any] = {
     "server": {"host": "0.0.0.0", "port": 8091},
     "ocr": {
-        "engine": "paddleocr",
+        "engine": "tesseract",
         "lang": "ch",
         "use_gpu": False,
         "ocr_version": "PP-OCRv4",
@@ -71,6 +71,10 @@ CONFIG = load_config()
 
 
 def setup_ocr_model_cache(config: Dict[str, Any]) -> None:
+    if str(config["ocr"].get("engine", "tesseract")).lower() == "tesseract":
+        logger.info("ocr engine=tesseract, model cache is not required")
+        return
+
     os.environ.setdefault("FLAGS_use_mkldnn", "0")
     os.environ.setdefault("FLAGS_enable_pir_api", "0")
     cache_dir = str(config["ocr"].get("model_cache_dir") or "").strip()
@@ -476,8 +480,95 @@ class PaddleOCREngine:
         return isinstance(node[1][0], str) and isinstance(node[1][1], Number)
 
 
-engine = PaddleOCREngine()
-if bool(CONFIG["ocr"].get("offline", False)):
+class TesseractOCREngine:
+    def __init__(self) -> None:
+        self._loaded = True
+
+    def recognize(self, image_path: Path, language: str) -> List[Dict[str, Any]]:
+        import pytesseract
+        from PIL import Image
+        from pytesseract import Output
+
+        lang = self._map_language(language)
+        config = str(CONFIG["ocr"].get("tesseract_config", "--psm 6"))
+        with Image.open(image_path) as image:
+            data = pytesseract.image_to_data(image, lang=lang, config=config, output_type=Output.DICT)
+        return self._parse_data(data)
+
+    @property
+    def model_loaded(self) -> bool:
+        return self._loaded
+
+    def _map_language(self, language: str) -> str:
+        configured = str(CONFIG["ocr"].get("tesseract_lang", "")).strip()
+        if configured:
+            return configured
+        value = (language or "").lower()
+        if value in ("zh-cn", "zh-hans", "zh", "ch"):
+            return "chi_sim+eng"
+        if value in ("zh-tw", "zh-hant", "chinese_cht"):
+            return "chi_tra+eng"
+        if value.startswith("ja"):
+            return "jpn+eng"
+        return "eng"
+
+    def _parse_data(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        grouped: Dict[Tuple[int, int, int], Dict[str, Any]] = {}
+        count = len(data.get("text", []))
+        for idx in range(count):
+            text = str(data["text"][idx] or "").strip()
+            if not text:
+                continue
+            try:
+                conf = float(data["conf"][idx])
+            except Exception:
+                conf = -1
+            if conf < 0:
+                continue
+
+            key = (
+                int(data.get("block_num", [0])[idx]),
+                int(data.get("par_num", [0])[idx]),
+                int(data.get("line_num", [0])[idx]),
+            )
+            left = int(data["left"][idx])
+            top = int(data["top"][idx])
+            width = int(data["width"][idx])
+            height = int(data["height"][idx])
+            x2 = left + width
+            y2 = top + height
+
+            item = grouped.setdefault(
+                key,
+                {"parts": [], "scores": [], "bbox": [left, top, x2, y2]},
+            )
+            item["parts"].append(text)
+            item["scores"].append(conf)
+            box = item["bbox"]
+            item["bbox"] = [min(box[0], left), min(box[1], top), max(box[2], x2), max(box[3], y2)]
+
+        items: List[Dict[str, Any]] = []
+        for item in grouped.values():
+            text = "".join(item["parts"]).strip()
+            if not text:
+                continue
+            scores = item["scores"]
+            confidence = (sum(scores) / len(scores) / 100.0) if scores else 0.0
+            items.append({"text": text, "confidence": confidence, "bbox": item["bbox"]})
+        return items
+
+
+def create_ocr_engine():
+    engine_name = str(CONFIG["ocr"].get("engine", "tesseract")).lower()
+    if engine_name == "tesseract":
+        return TesseractOCREngine()
+    if engine_name == "paddleocr":
+        return PaddleOCREngine()
+    raise RuntimeError(f"unsupported ocr.engine: {engine_name}")
+
+
+engine = create_ocr_engine()
+if str(CONFIG["ocr"].get("engine", "tesseract")).lower() == "paddleocr" and bool(CONFIG["ocr"].get("offline", False)):
     engine.ensure_loaded(str(CONFIG["ocr"].get("language", "zh-CN")))
 ocr_semaphore = threading.BoundedSemaphore(max(1, int(CONFIG["ocr"].get("max_concurrency", 2))))
 job_store = OCRJobStore()
