@@ -37,6 +37,7 @@ jobs:
           repo="${repo,,}"
           echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
+          default_branch="${{ github.event.repository.default_branch }}"
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
           acr_repository="${{ vars.ACR_REPOSITORY }}"
@@ -53,7 +54,7 @@ jobs:
             ref_name="${GITHUB_REF_NAME//\//-}"
             acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
             acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
-            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${default_branch}" ]; then
               acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
             fi
 
@@ -130,6 +131,7 @@ jobs:
           repo="${repo,,}"
           echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
+          default_branch="${{ github.event.repository.default_branch }}"
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
           acr_repository="${{ vars.ACR_REPOSITORY }}"
@@ -146,7 +148,7 @@ jobs:
             ref_name="${GITHUB_REF_NAME//\//-}"
             acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
             acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
-            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${default_branch}" ]; then
               acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
             fi
 
@@ -223,6 +225,7 @@ jobs:
           repo="${repo,,}"
           echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
+          default_branch="${{ github.event.repository.default_branch }}"
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
           acr_repository="${{ vars.ACR_REPOSITORY }}"
@@ -239,7 +242,7 @@ jobs:
             ref_name="${GITHUB_REF_NAME//\//-}"
             acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
             acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
-            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${default_branch}" ]; then
               acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
             fi
 
@@ -316,6 +319,7 @@ jobs:
           repo="${repo,,}"
           echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
+          default_branch="${{ github.event.repository.default_branch }}"
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
           acr_repository="${{ vars.ACR_REPOSITORY }}"
@@ -332,7 +336,7 @@ jobs:
             ref_name="${GITHUB_REF_NAME//\//-}"
             acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
             acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
-            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${default_branch}" ]; then
               acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
             fi
 
@@ -409,6 +413,7 @@ jobs:
           repo="${repo,,}"
           echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
+          default_branch="${{ github.event.repository.default_branch }}"
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
           acr_repository="${{ vars.ACR_REPOSITORY }}"
@@ -425,7 +430,7 @@ jobs:
             ref_name="${GITHUB_REF_NAME//\//-}"
             acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
             acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
-            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${default_branch}" ]; then
               acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
             fi
 
