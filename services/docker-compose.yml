@@ -1,6 +1,6 @@
 services:
   tts-worker:
-    image: ${TOOLS_IMAGE_PREFIX}/tts-worker:${IMAGE_TAG:-latest}
+    image: ${TTS_WORKER_IMAGE:-${TOOLS_IMAGE_PREFIX}/tts-worker:${IMAGE_TAG:-latest}}
     container_name: tools-tts-worker
     restart: unless-stopped
     environment:
@@ -17,7 +17,7 @@ services:
       start_period: 15s
 
   tts-service:
-    image: ${TOOLS_IMAGE_PREFIX}/tts-service:${IMAGE_TAG:-latest}
+    image: ${TTS_SERVICE_IMAGE:-${TOOLS_IMAGE_PREFIX}/tts-service:${IMAGE_TAG:-latest}}
     container_name: tools-tts-service
     restart: unless-stopped
     volumes:
@@ -39,7 +39,7 @@ services:
       start_period: 15s
 
   ffmpeg-service:
-    image: ${TOOLS_IMAGE_PREFIX}/ffmpeg-service:${IMAGE_TAG:-latest}
+    image: ${FFMPEG_SERVICE_IMAGE:-${TOOLS_IMAGE_PREFIX}/ffmpeg-service:${IMAGE_TAG:-latest}}
     container_name: tools-ffmpeg-service
     restart: unless-stopped
     volumes:
@@ -60,7 +60,7 @@ services:
       start_period: 10s
 
   ocr-service:
-    image: ${TOOLS_IMAGE_PREFIX}/ocr-service:${IMAGE_TAG:-latest}
+    image: ${OCR_SERVICE_IMAGE:-${TOOLS_IMAGE_PREFIX}/ocr-service:${IMAGE_TAG:-latest}}
     container_name: tools-ocr-service
     restart: unless-stopped
     environment:
@@ -87,8 +87,10 @@ services:
       start_period: 20s
 
   asr-service:
-    image: ${TOOLS_IMAGE_PREFIX}/asr-service:${IMAGE_TAG:-latest}
+    image: ${ASR_SERVICE_IMAGE:-${TOOLS_IMAGE_PREFIX}/asr-service:${IMAGE_TAG:-latest}}
     container_name: tools-asr-service
+    profiles:
+      - asr
     restart: unless-stopped
     environment:
       XDG_CACHE_HOME: /models/cache

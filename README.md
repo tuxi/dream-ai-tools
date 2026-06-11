@@ -21,7 +21,8 @@ Docker Compose entrypoint:
 
 ```bash
 cd services
-docker compose up ocr-service asr-service
+docker compose up ocr-service
+docker compose --profile asr up asr-service
 ```
 
 Model caches for OCR / ASR should be persistent. Docker Compose mounts `${DATA_PATH}/models` to `/models`; local Mac development can use:

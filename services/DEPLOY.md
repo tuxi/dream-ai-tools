@@ -37,7 +37,7 @@ ghcr.io/tuxi/dream-ai-tools/asr-service:latest
 
 首次确认：
 1. GitHub Actions 页面构建成功
-2. 3 个 GHCR 包已生成
+2. 5 个 GHCR 包已生成
 3. 如果包是 private，服务器需用 GitHub PAT 登录
 
 服务器登录 GHCR：
@@ -45,13 +45,62 @@ ghcr.io/tuxi/dream-ai-tools/asr-service:latest
 echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
-### 可选：同步推送阿里云 ACR
+### 国内服务器建议：同步推送到国内镜像仓库
+
+腾讯云服务器不建议直接拉 GHCR 的 ASR 镜像。`asr-service` 镜像包含 `torch/torchaudio/funasr`，镜像层可达 GB 级；从 GHCR 拉取可能非常慢，甚至无法完成。
+
+建议把 GitHub Actions 产物同步推送到阿里云 ACR 或腾讯云 TCR/CCR，然后服务器 `.env` 使用国内 registry。
+
+如果阿里云 ACR 是单仓库，例如：
+
+```text
+crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools
+```
+
+GitHub Variables 配置为：
+
+```text
+ACR_REGISTRY=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com
+ACR_NAMESPACE=dreamlog
+ACR_REPOSITORY=dream-ai-tools
+```
+
+发布后会使用单仓库多 tag：
+
+```text
+crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:ffmpeg-service-latest
+crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:tts-service-latest
+crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:tts-worker-latest
+crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:ocr-service-latest
+crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:asr-service-latest
+```
+
+服务器 `.env` 使用显式镜像变量：
+
+```env
+FFMPEG_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:ffmpeg-service-latest
+TTS_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:tts-service-latest
+TTS_WORKER_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:tts-worker-latest
+OCR_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:ocr-service-latest
+ASR_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:asr-service-latest
+```
+
+如果是每个服务一个仓库，则继续使用镜像前缀：
+
+```env
+TOOLS_IMAGE_PREFIX=registry.cn-beijing.aliyuncs.com/<namespace>
+# 或：
+TOOLS_IMAGE_PREFIX=ccr.ccs.tencentyun.com/<namespace>/dream-ai-tools
+```
+
+当前 workflow 的 ACR 变量也可用于任意 Docker Registry：
 
 在 GitHub 仓库 Settings 中添加：
 
 Variables：
-- `ACR_REGISTRY`（如 `crpi-xxxx.cn-beijing.personal.cr.aliyuncs.com`）
-- `ACR_NAMESPACE`（如 `dreamlog`）
+- `ACR_REGISTRY`（如 `registry.cn-beijing.aliyuncs.com`、企业版实例域名或 `ccr.ccs.tencentyun.com`）
+- `ACR_NAMESPACE`（阿里云个人版建议直接填 `<namespace>`；其他 registry 如需分组可填 `<namespace>/dream-ai-tools`）
+- `ACR_REPOSITORY`（可选；配置后启用单仓库多 tag 模式，如 `dream-ai-tools`）
 
 Secrets：
 - `ACR_USERNAME`
@@ -112,6 +161,13 @@ cp services/docker-compose.yml ~/apps/dream-ai-tools/compose.yml
 cat > ~/apps/dream-ai-tools/.env <<'EOF'
 TOOLS_IMAGE_PREFIX=ghcr.io/tuxi/dream-ai-tools
 IMAGE_TAG=latest
+
+# 阿里云 ACR 单仓库多 tag 模式时取消注释，并替换 registry/namespace/repository。
+# FFMPEG_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:ffmpeg-service-latest
+# TTS_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:tts-service-latest
+# TTS_WORKER_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:tts-worker-latest
+# OCR_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:ocr-service-latest
+# ASR_SERVICE_IMAGE=crpi-j6saptuqjsv9vt36.cn-beijing.personal.cr.aliyuncs.com/dreamlog/dream-ai-tools:asr-service-latest
 
 DATA_PATH=/home/ubuntu/apps/dream-ai-tools/data
 CONFIG_PATH=/home/ubuntu/apps/dream-ai-tools/config
@@ -254,13 +310,13 @@ ${DATA_PATH}/models/
 docker run --rm \
   -v /home/ubuntu/apps/dream-ai-tools/data/models:/models \
   -v /home/ubuntu/apps/dream-ai-tools/config/ocr-service.yaml:/app/config.yaml:ro \
-  ghcr.io/tuxi/dream-ai-tools/ocr-service:latest \
+  ${TOOLS_IMAGE_PREFIX}/ocr-service:${IMAGE_TAG:-latest} \
   python scripts/download_models.py --target ocr --config /app/config.yaml
 
 docker run --rm \
   -v /home/ubuntu/apps/dream-ai-tools/data/models:/models \
   -v /home/ubuntu/apps/dream-ai-tools/config/asr-service.yaml:/app/config.yaml:ro \
-  ghcr.io/tuxi/dream-ai-tools/asr-service:latest \
+  ${TOOLS_IMAGE_PREFIX}/asr-service:${IMAGE_TAG:-latest} \
   python scripts/download_models.py --target asr --config /app/config.yaml
 ```
 
@@ -271,10 +327,10 @@ docker run --rm \
 ```bash
 cd ~/apps/dream-ai-tools
 
-# 拉取最新镜像
+# 拉取默认服务镜像：不包含 ASR（ASR 镜像很大，单独处理）
 docker compose -f compose.yml --env-file .env pull
 
-# 启动所有服务
+# 启动默认服务：tts / ffmpeg / ocr
 docker compose -f compose.yml --env-file .env up -d
 
 # 查看状态
@@ -287,6 +343,16 @@ docker compose -f compose.yml --env-file .env ps
 - `tools-tts-service` → healthy
 - `tools-ffmpeg-service` → healthy
 - `tools-ocr-service` → healthy
+
+ASR 服务默认放在 `asr` profile 中，避免每次部署都拉取 GB 级镜像。需要启用 ASR 时单独执行：
+
+```bash
+docker compose -f compose.yml --env-file .env --profile asr pull asr-service
+docker compose -f compose.yml --env-file .env --profile asr up -d asr-service
+docker compose -f compose.yml --env-file .env --profile asr ps asr-service
+```
+
+期望状态：
 - `tools-asr-service` → healthy
 
 ## 8. 验证服务
@@ -422,6 +488,13 @@ cd ~/apps/dream-ai-tools
 docker compose -f compose.yml --env-file .env pull
 docker compose -f compose.yml --env-file .env up -d
 docker compose -f compose.yml --env-file .env ps
+```
+
+ASR 单独升级：
+
+```bash
+docker compose -f compose.yml --env-file .env --profile asr pull asr-service
+docker compose -f compose.yml --env-file .env --profile asr up -d asr-service
 ```
 
 ### 重启单个服务

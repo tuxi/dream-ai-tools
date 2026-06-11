@@ -31,18 +31,40 @@ jobs:
         id: images
         shell: bash
         run: |
+          service="ffmpeg-service"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           repo="${GITHUB_REPOSITORY#*/}"
           repo="${repo,,}"
-          echo "ghcr_image=ghcr.io/${owner}/${repo}/ffmpeg-service" >> "$GITHUB_OUTPUT"
+          echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
+          acr_repository="${{ vars.ACR_REPOSITORY }}"
           if [ -n "$acr_registry" ] && [ -n "$acr_namespace" ]; then
             echo "acr_enabled=true" >> "$GITHUB_OUTPUT"
-            echo "acr_image=${acr_registry}/${acr_namespace}/ffmpeg-service" >> "$GITHUB_OUTPUT"
+            if [ -n "$acr_repository" ]; then
+              acr_image="${acr_registry}/${acr_namespace}/${acr_repository}"
+              acr_tag_prefix="${service}-"
+            else
+              acr_image="${acr_registry}/${acr_namespace}/${service}"
+              acr_tag_prefix=""
+            fi
+
+            ref_name="${GITHUB_REF_NAME//\//-}"
+            acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
+            acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+              acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
+            fi
+
+            {
+              echo "acr_tags<<EOF"
+              printf "%s\n" "${acr_tags[@]}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "acr_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "acr_tags=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
@@ -64,9 +86,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.images.outputs.ghcr_image }}
-            ${{ steps.images.outputs.acr_enabled == 'true' && steps.images.outputs.acr_image || '' }}
+          images: ${{ steps.images.outputs.ghcr_image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -80,7 +100,9 @@ jobs:
           file: services/ffmpeg-service/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.images.outputs.acr_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=ffmpeg-service
           cache-to: type=gha,mode=max,scope=ffmpeg-service
@@ -102,18 +124,40 @@ jobs:
         id: images
         shell: bash
         run: |
+          service="tts-service"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           repo="${GITHUB_REPOSITORY#*/}"
           repo="${repo,,}"
-          echo "ghcr_image=ghcr.io/${owner}/${repo}/tts-service" >> "$GITHUB_OUTPUT"
+          echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
+          acr_repository="${{ vars.ACR_REPOSITORY }}"
           if [ -n "$acr_registry" ] && [ -n "$acr_namespace" ]; then
             echo "acr_enabled=true" >> "$GITHUB_OUTPUT"
-            echo "acr_image=${acr_registry}/${acr_namespace}/tts-service" >> "$GITHUB_OUTPUT"
+            if [ -n "$acr_repository" ]; then
+              acr_image="${acr_registry}/${acr_namespace}/${acr_repository}"
+              acr_tag_prefix="${service}-"
+            else
+              acr_image="${acr_registry}/${acr_namespace}/${service}"
+              acr_tag_prefix=""
+            fi
+
+            ref_name="${GITHUB_REF_NAME//\//-}"
+            acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
+            acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+              acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
+            fi
+
+            {
+              echo "acr_tags<<EOF"
+              printf "%s\n" "${acr_tags[@]}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "acr_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "acr_tags=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
@@ -135,9 +179,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.images.outputs.ghcr_image }}
-            ${{ steps.images.outputs.acr_enabled == 'true' && steps.images.outputs.acr_image || '' }}
+          images: ${{ steps.images.outputs.ghcr_image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -151,7 +193,9 @@ jobs:
           file: services/tts-service/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.images.outputs.acr_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=tts-service
           cache-to: type=gha,mode=max,scope=tts-service
@@ -173,18 +217,40 @@ jobs:
         id: images
         shell: bash
         run: |
+          service="tts-worker"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           repo="${GITHUB_REPOSITORY#*/}"
           repo="${repo,,}"
-          echo "ghcr_image=ghcr.io/${owner}/${repo}/tts-worker" >> "$GITHUB_OUTPUT"
+          echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
+          acr_repository="${{ vars.ACR_REPOSITORY }}"
           if [ -n "$acr_registry" ] && [ -n "$acr_namespace" ]; then
             echo "acr_enabled=true" >> "$GITHUB_OUTPUT"
-            echo "acr_image=${acr_registry}/${acr_namespace}/tts-worker" >> "$GITHUB_OUTPUT"
+            if [ -n "$acr_repository" ]; then
+              acr_image="${acr_registry}/${acr_namespace}/${acr_repository}"
+              acr_tag_prefix="${service}-"
+            else
+              acr_image="${acr_registry}/${acr_namespace}/${service}"
+              acr_tag_prefix=""
+            fi
+
+            ref_name="${GITHUB_REF_NAME//\//-}"
+            acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
+            acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+              acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
+            fi
+
+            {
+              echo "acr_tags<<EOF"
+              printf "%s\n" "${acr_tags[@]}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "acr_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "acr_tags=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
@@ -206,9 +272,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.images.outputs.ghcr_image }}
-            ${{ steps.images.outputs.acr_enabled == 'true' && steps.images.outputs.acr_image || '' }}
+          images: ${{ steps.images.outputs.ghcr_image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -222,7 +286,9 @@ jobs:
           file: services/tts-worker/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.images.outputs.acr_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=tts-worker
           cache-to: type=gha,mode=max,scope=tts-worker
@@ -244,18 +310,40 @@ jobs:
         id: images
         shell: bash
         run: |
+          service="ocr-service"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           repo="${GITHUB_REPOSITORY#*/}"
           repo="${repo,,}"
-          echo "ghcr_image=ghcr.io/${owner}/${repo}/ocr-service" >> "$GITHUB_OUTPUT"
+          echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
+          acr_repository="${{ vars.ACR_REPOSITORY }}"
           if [ -n "$acr_registry" ] && [ -n "$acr_namespace" ]; then
             echo "acr_enabled=true" >> "$GITHUB_OUTPUT"
-            echo "acr_image=${acr_registry}/${acr_namespace}/ocr-service" >> "$GITHUB_OUTPUT"
+            if [ -n "$acr_repository" ]; then
+              acr_image="${acr_registry}/${acr_namespace}/${acr_repository}"
+              acr_tag_prefix="${service}-"
+            else
+              acr_image="${acr_registry}/${acr_namespace}/${service}"
+              acr_tag_prefix=""
+            fi
+
+            ref_name="${GITHUB_REF_NAME//\//-}"
+            acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
+            acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+              acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
+            fi
+
+            {
+              echo "acr_tags<<EOF"
+              printf "%s\n" "${acr_tags[@]}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "acr_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "acr_tags=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
@@ -277,9 +365,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.images.outputs.ghcr_image }}
-            ${{ steps.images.outputs.acr_enabled == 'true' && steps.images.outputs.acr_image || '' }}
+          images: ${{ steps.images.outputs.ghcr_image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -293,7 +379,9 @@ jobs:
           file: services/ocr-service/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.images.outputs.acr_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=ocr-service
           cache-to: type=gha,mode=max,scope=ocr-service
@@ -315,18 +403,40 @@ jobs:
         id: images
         shell: bash
         run: |
+          service="asr-service"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           repo="${GITHUB_REPOSITORY#*/}"
           repo="${repo,,}"
-          echo "ghcr_image=ghcr.io/${owner}/${repo}/asr-service" >> "$GITHUB_OUTPUT"
+          echo "ghcr_image=ghcr.io/${owner}/${repo}/${service}" >> "$GITHUB_OUTPUT"
 
           acr_registry="${{ vars.ACR_REGISTRY }}"
           acr_namespace="${{ vars.ACR_NAMESPACE }}"
+          acr_repository="${{ vars.ACR_REPOSITORY }}"
           if [ -n "$acr_registry" ] && [ -n "$acr_namespace" ]; then
             echo "acr_enabled=true" >> "$GITHUB_OUTPUT"
-            echo "acr_image=${acr_registry}/${acr_namespace}/asr-service" >> "$GITHUB_OUTPUT"
+            if [ -n "$acr_repository" ]; then
+              acr_image="${acr_registry}/${acr_namespace}/${acr_repository}"
+              acr_tag_prefix="${service}-"
+            else
+              acr_image="${acr_registry}/${acr_namespace}/${service}"
+              acr_tag_prefix=""
+            fi
+
+            ref_name="${GITHUB_REF_NAME//\//-}"
+            acr_tags=("${acr_image}:${acr_tag_prefix}sha-${GITHUB_SHA::7}")
+            acr_tags+=("${acr_image}:${acr_tag_prefix}${ref_name}")
+            if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ "${GITHUB_REF_NAME}" = "${GITHUB_DEFAULT_BRANCH}" ]; then
+              acr_tags+=("${acr_image}:${acr_tag_prefix}latest")
+            fi
+
+            {
+              echo "acr_tags<<EOF"
+              printf "%s\n" "${acr_tags[@]}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "acr_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "acr_tags=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
@@ -348,9 +458,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.images.outputs.ghcr_image }}
-            ${{ steps.images.outputs.acr_enabled == 'true' && steps.images.outputs.acr_image || '' }}
+          images: ${{ steps.images.outputs.ghcr_image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -364,7 +472,9 @@ jobs:
           file: services/asr-service/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.images.outputs.acr_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=asr-service
           cache-to: type=gha,mode=max,scope=asr-service
