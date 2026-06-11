@@ -33,6 +33,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "use_textline_orientation": False,
         "enable_mkldnn": False,
         "enable_hpi": False,
+        "ir_optim": False,
         "cpu_threads": 2,
         "model_cache_dir": "",
         "offline": False,
@@ -348,6 +349,7 @@ class PaddleOCREngine:
         runtime_kwargs = {
             "enable_mkldnn": bool(CONFIG["ocr"].get("enable_mkldnn", False)),
             "enable_hpi": bool(CONFIG["ocr"].get("enable_hpi", False)),
+            "ir_optim": bool(CONFIG["ocr"].get("ir_optim", False)),
             "cpu_threads": int(CONFIG["ocr"].get("cpu_threads", 2)),
         }
         candidates = [

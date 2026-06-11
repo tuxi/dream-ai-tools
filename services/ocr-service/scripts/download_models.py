@@ -15,6 +15,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "use_textline_orientation": False,
         "enable_mkldnn": False,
         "enable_hpi": False,
+        "ir_optim": False,
         "cpu_threads": 2,
         "model_cache_dir": "/models/paddleocr",
         "offline": False,
@@ -94,6 +95,7 @@ def main() -> None:
     runtime_kwargs = {
         "enable_mkldnn": bool(config["ocr"].get("enable_mkldnn", False)),
         "enable_hpi": bool(config["ocr"].get("enable_hpi", False)),
+        "ir_optim": bool(config["ocr"].get("ir_optim", False)),
         "cpu_threads": int(config["ocr"].get("cpu_threads", 2)),
     }
     candidates = [

@@ -12,6 +12,7 @@ ocr:
   use_textline_orientation: false
   enable_mkldnn: false
   enable_hpi: false
+  ir_optim: false
   cpu_threads: 2
   model_cache_dir: /models/paddleocr
   offline: false
