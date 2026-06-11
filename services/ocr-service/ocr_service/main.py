@@ -74,6 +74,7 @@ def setup_ocr_model_cache(config: Dict[str, Any]) -> None:
         os.environ.setdefault("PADDLE_HOME", str(Path(default_root) / "paddle"))
         os.environ.setdefault("PADDLEX_HOME", cache_dir)
         os.environ.setdefault("PADDLEOCR_HOME", str(Path(default_root) / "paddleocr"))
+        setup_paddlex_home_link(cache_dir)
 
     if bool(config["ocr"].get("offline", False)):
         cache_dir = cache_dir or os.environ.get("PADDLEX_HOME", "")
@@ -89,6 +90,25 @@ def setup_ocr_model_cache(config: Dict[str, Any]) -> None:
         os.environ.get("XDG_CACHE_HOME", ""),
         bool(config["ocr"].get("offline", False)),
     )
+
+
+def setup_paddlex_home_link(cache_dir: str) -> None:
+    target = Path(cache_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    legacy = Path.home() / ".paddlex"
+    try:
+        if legacy.is_symlink() and legacy.resolve(strict=False) == target.resolve(strict=False):
+            return
+        if legacy.exists():
+            if legacy.is_dir() and not any(legacy.iterdir()):
+                legacy.rmdir()
+            else:
+                logger.warning("legacy paddlex cache exists path=%s target=%s", legacy, target)
+                return
+        legacy.symlink_to(target, target_is_directory=True)
+        logger.info("linked legacy paddlex cache path=%s target=%s", legacy, target)
+    except Exception as exc:
+        logger.warning("failed to link legacy paddlex cache path=%s target=%s error=%s", legacy, target, exc)
 
 
 def ensure_ocr_model_cache_exists(cache_dir: str, ocr_version: str) -> None:

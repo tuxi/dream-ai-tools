@@ -74,6 +74,7 @@ services:
       - ${DATA_PATH}/tmp:${DATA_PATH}/tmp
       - ${DATA_PATH}/tmp:/tmp
       - ${DATA_PATH}/models:/models
+      - ${DATA_PATH}/models/paddlex:/root/.paddlex
     networks:
       - tools-net
       - dream-ai

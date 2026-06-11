@@ -309,6 +309,7 @@ ${DATA_PATH}/models/
 ```bash
 docker run --rm \
   -v /home/ubuntu/apps/dream-ai-tools/data/models:/models \
+  -v /home/ubuntu/apps/dream-ai-tools/data/models/paddlex:/root/.paddlex \
   -v /home/ubuntu/apps/dream-ai-tools/config/ocr-service.yaml:/app/config.yaml:ro \
   ${TOOLS_IMAGE_PREFIX}/ocr-service:${IMAGE_TAG:-latest} \
   python scripts/download_models.py --target ocr --config /app/config.yaml

@@ -42,6 +42,21 @@ def setup_cache(config: Dict[str, Any]) -> None:
     os.environ["PADDLEX_HOME"] = os.environ.get("PADDLEX_HOME", cache_dir)
     os.environ["PADDLEOCR_HOME"] = os.environ.get("PADDLEOCR_HOME", str(Path(root) / "paddleocr"))
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
+    setup_paddlex_home_link(cache_dir)
+
+
+def setup_paddlex_home_link(cache_dir: str) -> None:
+    target = Path(cache_dir)
+    legacy = Path.home() / ".paddlex"
+    if legacy.is_symlink() and legacy.resolve(strict=False) == target.resolve(strict=False):
+        return
+    if legacy.exists():
+        if legacy.is_dir() and not any(legacy.iterdir()):
+            legacy.rmdir()
+        else:
+            print(f"Warning: {legacy} exists, PaddleX may use it instead of {target}")
+            return
+    legacy.symlink_to(target, target_is_directory=True)
 
 
 def main() -> None:
