@@ -8,7 +8,9 @@ import yaml
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "asr": {
-        "model": "auto",
+        "model": "sensevoice",
+        "vad_model": "",
+        "punc_model": "",
         "model_cache_dir": "/models/modelscope",
         "offline": False,
     }
@@ -45,10 +47,10 @@ def setup_cache(config: Dict[str, Any]) -> None:
 
 
 def resolve_model_name(value: str) -> str:
-    if not value or value == "auto" or value == "funasr":
-        return "paraformer-zh"
-    if value == "sensevoice":
+    if not value or value == "auto" or value == "sensevoice":
         return "iic/SenseVoiceSmall"
+    if value == "funasr" or value == "paraformer-zh":
+        return "paraformer-zh"
     return value
 
 
@@ -66,8 +68,12 @@ def main() -> None:
 
     model_name = resolve_model_name(str(config["asr"].get("model", "auto")))
     kwargs: Dict[str, Any] = {"model": model_name, "disable_update": True}
-    if model_name != "iic/SenseVoiceSmall":
-        kwargs.update({"vad_model": "fsmn-vad", "punc_model": "ct-punc"})
+    vad_model = str(config["asr"].get("vad_model", "") or "").strip()
+    punc_model = str(config["asr"].get("punc_model", "") or "").strip()
+    if vad_model:
+        kwargs["vad_model"] = vad_model
+    if punc_model:
+        kwargs["punc_model"] = punc_model
 
     print("Downloading FunASR models with cache:", os.environ.get("MODELSCOPE_CACHE"))
     try:

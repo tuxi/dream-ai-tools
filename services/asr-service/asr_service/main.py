@@ -26,7 +26,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "engine": "funasr",
         "language": "zh-CN",
         "use_gpu": False,
-        "model": "auto",
+        "model": "sensevoice",
+        "vad_model": "",
+        "punc_model": "",
+        "batch_size_s": 60,
         "model_cache_dir": "",
         "offline": False,
         "sample_rate": 16000,
@@ -412,18 +415,22 @@ class FunASREngine:
     def _resolve_model_name(self, request_model: str) -> str:
         configured = str(CONFIG["asr"].get("model", "auto"))
         value = request_model if request_model and request_model != "auto" else configured
-        if not value or value == "auto" or value == "funasr":
-            return "paraformer-zh"
-        if value == "sensevoice":
+        if not value or value == "auto" or value == "sensevoice":
             return "iic/SenseVoiceSmall"
+        if value == "funasr" or value == "paraformer-zh":
+            return "paraformer-zh"
         return value
 
     def _create_model(self, model_name: str) -> Any:
         from funasr import AutoModel
 
         kwargs: Dict[str, Any] = {"model": model_name, "disable_update": True}
-        if model_name != "iic/SenseVoiceSmall":
-            kwargs.update({"vad_model": "fsmn-vad", "punc_model": "ct-punc"})
+        vad_model = str(CONFIG["asr"].get("vad_model", "") or "").strip()
+        punc_model = str(CONFIG["asr"].get("punc_model", "") or "").strip()
+        if vad_model:
+            kwargs["vad_model"] = vad_model
+        if punc_model:
+            kwargs["punc_model"] = punc_model
         logger.info("loading FunASR model=%s", model_name)
         try:
             return AutoModel(**kwargs)
@@ -432,7 +439,10 @@ class FunASREngine:
             return AutoModel(**kwargs)
 
     def _transcribe_sync(self, audio_path: Path, with_timestamps: bool, duration: Optional[float]) -> List[Dict[str, Any]]:
-        kwargs: Dict[str, Any] = {"input": str(audio_path), "batch_size_s": 300}
+        kwargs: Dict[str, Any] = {
+            "input": str(audio_path),
+            "batch_size_s": int(CONFIG["asr"].get("batch_size_s", 60)),
+        }
         if with_timestamps:
             kwargs["return_timestamp"] = True
         try:

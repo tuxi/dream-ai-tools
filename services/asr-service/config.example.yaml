@@ -6,7 +6,10 @@ asr:
   engine: funasr
   language: zh-CN
   use_gpu: false
-  model: auto
+  model: sensevoice
+  vad_model: ""
+  punc_model: ""
+  batch_size_s: 60
   model_cache_dir: /models/modelscope
   offline: false
   sample_rate: 16000
