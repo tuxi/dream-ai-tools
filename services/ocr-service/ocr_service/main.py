@@ -28,6 +28,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "lang": "ch",
         "use_gpu": False,
         "ocr_version": "PP-OCRv5",
+        "use_doc_orientation_classify": False,
+        "use_doc_unwarping": False,
+        "use_textline_orientation": False,
         "model_cache_dir": "",
         "offline": False,
         "min_confidence": 0.6,
@@ -64,6 +67,8 @@ CONFIG = load_config()
 
 
 def setup_ocr_model_cache(config: Dict[str, Any]) -> None:
+    os.environ.setdefault("FLAGS_use_mkldnn", "0")
+    os.environ.setdefault("FLAGS_enable_pir_api", "0")
     cache_dir = str(config["ocr"].get("model_cache_dir") or "").strip()
     if cache_dir:
         if cache_dir.startswith("/models"):
@@ -98,6 +103,9 @@ def setup_paddlex_home_link(cache_dir: str) -> None:
     legacy = Path.home() / ".paddlex"
     try:
         if legacy.is_symlink() and legacy.resolve(strict=False) == target.resolve(strict=False):
+            return
+        if legacy.is_mount():
+            logger.info("using mounted legacy paddlex cache path=%s target=%s", legacy, target)
             return
         if legacy.exists():
             if legacy.is_dir() and not any(legacy.iterdir()):
@@ -327,21 +335,26 @@ class PaddleOCREngine:
         lang = CONFIG["ocr"].get("lang") or self._map_language(language)
         use_gpu = bool(CONFIG["ocr"].get("use_gpu", False))
         ocr_version = str(CONFIG["ocr"].get("ocr_version", "PP-OCRv5"))
+        stable_kwargs = {
+            "use_doc_orientation_classify": bool(CONFIG["ocr"].get("use_doc_orientation_classify", False)),
+            "use_doc_unwarping": bool(CONFIG["ocr"].get("use_doc_unwarping", False)),
+            "use_textline_orientation": bool(CONFIG["ocr"].get("use_textline_orientation", False)),
+        }
         candidates = [
             {
                 "lang": lang,
                 "ocr_version": ocr_version,
-                "use_textline_orientation": True,
+                **stable_kwargs,
             },
-            {"lang": lang, "use_textline_orientation": True},
-            {"lang": lang, "use_angle_cls": True},
+            {"lang": lang, **stable_kwargs},
             {
                 "lang": lang,
                 "use_gpu": use_gpu,
                 "ocr_version": ocr_version,
-                "use_textline_orientation": True,
+                **stable_kwargs,
             },
-            {"lang": lang, "use_gpu": use_gpu, "use_angle_cls": True},
+            {"lang": lang, "use_gpu": use_gpu, **stable_kwargs},
+            {"lang": lang, "ocr_version": ocr_version},
             {"lang": lang},
         ]
         last_error: Optional[Exception] = None

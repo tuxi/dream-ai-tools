@@ -68,6 +68,8 @@ services:
       PADDLE_HOME: /models/paddle
       PADDLEX_HOME: /models/paddlex
       PADDLEOCR_HOME: /models/paddleocr
+      FLAGS_use_mkldnn: "0"
+      FLAGS_enable_pir_api: "0"
     volumes:
       - ${CONFIG_PATH}/ocr-service.yaml:/app/config.yaml:ro
       - ${DATA_PATH}/media:${DATA_PATH}/media
