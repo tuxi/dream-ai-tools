@@ -669,3 +669,51 @@ job done ... operation=burn-subtitle status=done
    - `burn_subtitle.go`：ffmpeg ass 滤镜加了 `fontsdir=/fonts` 参数
    - `executor.go`：`runFFmpeg` 成功时也会记录 stderr，方便排查字体等问题
    - `video_subtitle_burn_v2.go`：Linux 下 ASS Fontname 为 `Noto Sans CJK SC`，与宿主机 TTC 文件内部字体名一致
+
+### 抽关键帧输出空图或 0 字节 JPG
+
+**现象：** `extract-frame` 任务返回的 jpg 路径存在，但图片打不开或大小为 0 字节。ai-engine 中可能表现为 `ExtractKeyframesTool` 某些 keyframe 的 `local_path` 指向空图片，后续 VLM 分析失败或跳过。
+
+**典型 ffmpeg 日志：**
+
+```text
+operation=extract-frame status=failed
+[mjpeg] Non full-range YUV is non-standard
+ff_frame_thread_encoder_init failed
+Error while opening encoder
+Nothing was written into output file
+```
+
+这个问题常见于 FFmpeg 8.x 对 `yuv420p(tv, ...)` 视频抽 JPEG 帧时，mjpeg 编码器初始化失败。
+
+**代码侧修复：**
+
+- `extract_frame.go` 对 `jpg/jpeg` 输出显式增加：
+  - `-pix_fmt yuvj420p`
+  - `-threads 1`
+- `extract_frame.go` 在返回成功前校验输出文件存在且大小大于 0，避免空图继续流入 ai-engine。
+
+**线上验证：**
+
+```bash
+docker logs tools-ffmpeg-service --since=30m 2>&1 \
+  | grep -E 'extract-frame|ffmpeg completed|job done|job failed|mjpeg|Nothing was written|empty output'
+```
+
+正常日志应看到：
+
+```text
+job done ... operation=extract-frame status=done output_path=...jpg
+```
+
+如果仍失败，先检查输出文件大小：
+
+```bash
+docker exec tools-ffmpeg-service sh -lc 'ls -lah /tmp/media/output/*.jpg 2>/dev/null | tail -20'
+```
+
+或者按具体路径检查：
+
+```bash
+docker exec tools-ffmpeg-service sh -lc 'stat /tmp/media/output/xxx.jpg'
+```
