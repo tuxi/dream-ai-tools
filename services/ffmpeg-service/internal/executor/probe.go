@@ -3,18 +3,20 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 )
 
 // ProbeInfo holds the result of a ffprobe call.
 type ProbeInfo struct {
-	DurationSec float64       `json:"duration_sec"`
-	Width       int           `json:"width"`
-	Height      int           `json:"height"`
-	SizeBytes   int64         `json:"size_bytes"`
-	Streams     []StreamInfo  `json:"streams"`
+	DurationSec float64      `json:"duration_sec"`
+	Width       int          `json:"width"`
+	Height      int          `json:"height"`
+	SizeBytes   int64        `json:"size_bytes"`
+	Streams     []StreamInfo `json:"streams"`
 }
 
 // StreamInfo describes a single audio or video stream.
@@ -27,6 +29,20 @@ type StreamInfo struct {
 
 // Probe runs ffprobe synchronously and returns media metadata.
 func Probe(ctx context.Context, ffprobePath, path string) (*ProbeInfo, error) {
+	// 检查文件是否存在
+	fileInfo, err := os.Stat(path) // trigger early error if file doesn't exist or is inaccessible
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("ffprobe: file does not exist: %w", err)
+		}
+		return nil, fmt.Errorf("ffprobe: cannot access file: %w", err)
+	}
+	if fileInfo.IsDir() {
+		return nil, fmt.Errorf("ffprobe: file is a directory")
+	}
+	if fileInfo.Size() == 0 {
+		return nil, fmt.Errorf("ffprobe: file is empty")
+	}
 	cmd := exec.CommandContext(ctx, ffprobePath,
 		"-v", "quiet",
 		"-print_format", "json",
@@ -45,12 +61,12 @@ func Probe(ctx context.Context, ffprobePath, path string) (*ProbeInfo, error) {
 			Size     string `json:"size"`
 		} `json:"format"`
 		Streams []struct {
-			CodecType         string `json:"codec_type"`
-			CodecName         string `json:"codec_name"`
-			Width             int    `json:"width"`
-			Height            int    `json:"height"`
-			RFrameRate        string `json:"r_frame_rate"`
-			SampleRate        string `json:"sample_rate"`
+			CodecType  string `json:"codec_type"`
+			CodecName  string `json:"codec_name"`
+			Width      int    `json:"width"`
+			Height     int    `json:"height"`
+			RFrameRate string `json:"r_frame_rate"`
+			SampleRate string `json:"sample_rate"`
 		} `json:"streams"`
 	}
 	if err := json.Unmarshal(out, &raw); err != nil {
